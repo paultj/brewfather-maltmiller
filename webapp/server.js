@@ -14,7 +14,7 @@ import {
   clearLoginFailures,
 } from "./lib/auth.js";
 import { loadSettings, publicSettings, updateSettings, DATA_DIR } from "./lib/settings.js";
-import { getInventory, createRecipe, testConnection, BrewfatherError } from "./lib/brewfather.js";
+import { getInventory, createRecipe, updateRecipe, testConnection, listRecipes, getEquipment, equipmentEfficiency, BrewfatherError } from "./lib/brewfather.js";
 import { chatTurn } from "./lib/claude.js";
 import { computeStats, annotateStock } from "./lib/calc.js";
 import { validateRecipe } from "./lib/recipe-schema.js";
@@ -101,11 +101,57 @@ app.post("/api/settings/test-brewfather", async (req, res) => {
     const settings = loadSettings();
     await testConnection(settings);
     const inv = await getInventory(settings, { refresh: true });
-    res.json({ ok: true, counts: Object.fromEntries(Object.entries(inv).map(([k, v]) => [k, v.length])) });
+    const equip = await getEquipment(settings, { refresh: true }).catch(() => null);
+    res.json({
+      ok: true,
+      counts: Object.fromEntries(Object.entries(inv).map(([k, v]) => [k, v.length])),
+      equipment: equip
+        ? {
+            name: equip.equipment.name || "(unnamed)",
+            fromRecipe: equip.fromRecipe.name,
+            efficiency: equipmentEfficiency(equip.equipment),
+            batchSize: equip.equipment.batchSize,
+            boilTime: equip.equipment.boilTime,
+          }
+        : null,
+    });
   } catch (err) {
     sendError(res, err);
   }
 });
+
+// Recipes for the "copy equipment from" picker in Settings.
+app.get("/api/brewfather/recipes", async (req, res) => {
+  try {
+    if (MOCK) return res.json({ recipes: [] });
+    const list = await listRecipes(loadSettings());
+    res.json({ recipes: (list || []).map((r) => ({ id: r._id, name: r.name, equipment: r.equipment?.name || "" })) });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+// Equipment copied from Brewfather (null if unavailable). Never throws.
+async function equipmentFor(settings) {
+  if (MOCK || !settings.brewfatherUserId || !settings.brewfatherApiKey) return null;
+  try {
+    return await getEquipment(settings);
+  } catch (err) {
+    console.warn("Couldn't load Brewfather equipment:", err.message);
+    return null;
+  }
+}
+
+// Settings with the efficiency from the Brewfather equipment profile, when available.
+async function effectiveSettings(settings) {
+  const equip = await equipmentFor(settings);
+  const eff = equipmentEfficiency(equip?.equipment);
+  if (!eff) return { settings, equip };
+  return {
+    settings: { ...settings, efficiencyPct: eff, efficiencySource: `from Brewfather equipment "${equip.equipment.name || equip.fromRecipe.name}"` },
+    equip,
+  };
+}
 
 // ---- Inventory ----
 async function inventoryFor(settings, opts) {
@@ -147,7 +193,7 @@ app.post("/api/chat", async (req, res) => {
 
     const turn = MOCK
       ? mockChatTurn({ history, text: text.trim() })
-      : await chatTurn({ settings, inventory, history, text: text.trim() });
+      : await chatTurn({ settings: (await effectiveSettings(settings)).settings, inventory, history, text: text.trim() });
 
     res.json({
       history: turn.history,
@@ -179,10 +225,15 @@ app.post("/api/recipe/push", async (req, res) => {
     const recipe = req.body?.recipe;
     const errors = validateRecipe(recipe);
     if (errors.length) return res.status(400).json({ error: errors.join("; ") });
-    if (MOCK) return res.json({ id: "mock-recipe", url: "https://web.brewfather.app/tabs/recipes", mock: true });
+    const updateId = typeof req.body?.updateId === "string" && req.body.updateId ? req.body.updateId : null;
+    if (MOCK) return res.json({ id: updateId || "mock-recipe", url: "https://web.brewfather.app/tabs/recipes", mock: true, updated: Boolean(updateId) });
     const settings = loadSettings();
     const inventory = await inventoryFor(settings).catch(() => null);
-    res.json(await createRecipe(settings, recipe, inventory));
+    const { equip } = await effectiveSettings(settings);
+    const result = updateId
+      ? await updateRecipe(settings, updateId, recipe, inventory, equip?.equipment)
+      : await createRecipe(settings, recipe, inventory, equip?.equipment);
+    res.json({ ...result, equipment: equip ? equip.equipment.name || equip.fromRecipe.name : null });
   } catch (err) {
     sendError(res, err);
   }

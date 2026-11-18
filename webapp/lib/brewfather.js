@@ -2,7 +2,7 @@
 // Docs: https://docs.brewfather.app/api  (500 calls/hour per key)
 import { computeStats } from "./calc.js";
 
-const BASE = "https://api.brewfather.app/v2";
+const BASE = process.env.BREWFATHER_API_BASE || "https://api.brewfather.app/v2";
 const COLLECTIONS = ["fermentables", "hops", "yeasts", "miscs"];
 const INVENTORY_TTL_MS = 5 * 60_000;
 
@@ -82,6 +82,49 @@ export async function getInventory(settings, { refresh = false } = {}) {
   return data;
 }
 
+/** Recipes for the equipment picker: newest first where Brewfather supports it. */
+export async function listRecipes(settings) {
+  try {
+    return await bf(settings, "GET", "/recipes?limit=50&order_by=_timestamp&order_by_direction=desc");
+  } catch (err) {
+    if (err.status !== 400) throw err;
+    return bf(settings, "GET", "/recipes?limit=50");
+  }
+}
+
+let equipmentCache = { key: "", at: 0, data: null };
+
+/**
+ * The equipment profile to use for new recipes, copied from an existing
+ * Brewfather recipe (the API has no equipment endpoint). Uses the recipe
+ * chosen in Settings, or the most recent recipe. Cached for 5 minutes.
+ * Returns { equipment, fromRecipe } or null if there are no recipes.
+ */
+export async function getEquipment(settings, { refresh = false } = {}) {
+  const key = `${settings.brewfatherUserId}:${settings.brewfatherApiKey.slice(-6)}:${settings.equipmentRecipeId || "latest"}`;
+  if (!refresh && equipmentCache.key === key && Date.now() - equipmentCache.at < INVENTORY_TTL_MS) {
+    return equipmentCache.data;
+  }
+  let id = settings.equipmentRecipeId;
+  if (!id) {
+    const list = await listRecipes(settings);
+    id = Array.isArray(list) && list[0]?._id;
+  }
+  let data = null;
+  if (id) {
+    const full = await bf(settings, "GET", `/recipes/${encodeURIComponent(id)}`);
+    if (full?.equipment) data = { equipment: full.equipment, fromRecipe: { id: full._id || id, name: full.name } };
+  }
+  equipmentCache = { key, at: Date.now(), data };
+  return data;
+}
+
+/** Brewhouse efficiency from a Brewfather equipment profile, if it has one. */
+export function equipmentEfficiency(equipment) {
+  const e = Number(equipment?.efficiency ?? equipment?.brewhouseEfficiency);
+  return Number.isFinite(e) && e > 0 ? e : null;
+}
+
 /** Cheap check that credentials work (one call). */
 export async function testConnection(settings) {
   await bf(settings, "GET", "/recipes?limit=1");
@@ -112,15 +155,37 @@ const HOP_USE = {
   "Dry Hop": "Dry Hop",
 };
 
-export function toBrewfatherRecipe(recipe, inventory) {
+function lovibondToSrm(l) {
+  return Math.max(0, Math.round((1.3546 * l - 0.76) * 10) / 10);
+}
+
+// Copy the brewer's equipment profile and apply this recipe's batch size,
+// boil time and efficiency, so Brewfather doesn't fall back to defaults.
+function equipmentFor(recipe, equipment) {
+  if (!equipment) return null;
+  const copy = { ...equipment };
+  const sizeChanged = Number(copy.batchSize) !== recipe.batch_size_l || Number(copy.boilTime) !== recipe.boil_time_min;
+  copy.batchSize = recipe.batch_size_l;
+  copy.boilTime = recipe.boil_time_min;
+  copy.efficiency = recipe.efficiency_pct;
+  if ("brewhouseEfficiency" in copy) copy.brewhouseEfficiency = recipe.efficiency_pct;
+  // Let Brewfather work out the pre-boil volume for the new batch size.
+  if (sizeChanged) copy.calcBoilVolume = true;
+  return copy;
+}
+
+export function toBrewfatherRecipe(recipe, inventory, equipment = null) {
   const stats = computeStats(recipe);
+  const equip = equipmentFor(recipe, equipment);
 
   const fermentables = recipe.fermentables.map((f) => ({
     ...fromInventory(inventory, "fermentables", f.inventory_id),
     name: f.name,
     type: f.type,
     amount: f.amount_kg,
-    color: f.color_lovibond,
+    // Brewfather stores grain colour in SRM, with Lovibond as a separate field.
+    color: lovibondToSrm(f.color_lovibond),
+    lovibond: f.color_lovibond,
     potential: f.potential_sg,
     potentialPercentage: Math.round(((f.potential_sg - 1) / 0.04621) * 1000) / 10,
     ...(f.supplier ? { supplier: f.supplier } : {}),
@@ -174,6 +239,8 @@ export function toBrewfatherRecipe(recipe, inventory) {
     batchSize: recipe.batch_size_l,
     boilTime: recipe.boil_time_min,
     efficiency: recipe.efficiency_pct,
+    ...(equip ? { equipment: equip } : {}),
+    ...(equip && equip.mashEfficiency != null ? { mashEfficiency: equip.mashEfficiency } : {}),
     style: {
       name: recipe.style.name,
       categoryNumber: recipe.style.bjcp_code.replace(/[A-Z]$/i, ""),
@@ -211,12 +278,20 @@ export function toBrewfatherRecipe(recipe, inventory) {
   };
 }
 
-export async function createRecipe(settings, recipe, inventory) {
-  const body = toBrewfatherRecipe(recipe, inventory);
+function recipeUrl(id) {
+  return id ? `https://web.brewfather.app/tabs/recipes/recipe/${id}` : "https://web.brewfather.app/tabs/recipes";
+}
+
+export async function createRecipe(settings, recipe, inventory, equipment) {
+  const body = toBrewfatherRecipe(recipe, inventory, equipment);
   const result = await bf(settings, "POST", "/recipes", body);
   const id = result?.id || result?._id;
-  return {
-    id,
-    url: id ? `https://web.brewfather.app/tabs/recipes/recipe/${id}` : "https://web.brewfather.app/tabs/recipes",
-  };
+  return { id, url: recipeUrl(id) };
+}
+
+/** Overwrite an existing Brewfather recipe (PATCH replaces each top-level field sent). */
+export async function updateRecipe(settings, id, recipe, inventory, equipment) {
+  const body = toBrewfatherRecipe(recipe, inventory, equipment);
+  await bf(settings, "PATCH", `/recipes/${encodeURIComponent(id)}`, body);
+  return { id, url: recipeUrl(id), updated: true };
 }

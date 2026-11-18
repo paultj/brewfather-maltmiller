@@ -41,6 +41,13 @@
           <input type="password" id="brewfatherApiKey" autocomplete="off">
           <div class="help" id="brewfatherApiKeyHelp">In Brewfather: Settings → API → Generate API key. Tick <b>Read Inventory</b> and <b>Edit Recipes</b> (recipes.write). Leave blank to keep the saved key.</div>
         </div>
+        <div class="field">
+          <label for="equipmentRecipeId">Copy equipment from</label>
+          <select id="equipmentRecipeId">
+            <option value="">Most recent recipe</option>
+          </select>
+          <div class="help">The Brewfather API can't read equipment profiles directly, so the app copies the equipment (boil-off, losses, efficiency, batch volume type) from one of your recipes. Pick a recipe that uses the equipment profile you brew with. Its efficiency is used for every recipe.</div>
+        </div>
         <div class="actions">
           <button type="button" id="test-bf" class="btn">Test connection</button>
         </div>
@@ -51,7 +58,7 @@
         <h3>Brewing defaults</h3>
         <div class="field-row">
           <div class="field"><label for="batchSizeL">Batch size (L)</label><input type="number" id="batchSizeL" step="0.5" min="1"></div>
-          <div class="field"><label for="efficiencyPct">Efficiency (%)</label><input type="number" id="efficiencyPct" step="1" min="30" max="100"></div>
+          <div class="field"><label for="efficiencyPct">Efficiency (%)</label><input type="number" id="efficiencyPct" step="0.1" min="30" max="100"><div class="help">Only used if no Brewfather equipment is found.</div></div>
           <div class="field"><label for="boilTimeMin">Boil (min)</label><input type="number" id="boilTimeMin" step="5" min="0"></div>
         </div>
         <div class="field">

@@ -1,5 +1,5 @@
 const $ = (id) => document.getElementById(id);
-const FIELDS = ["brewfatherUserId", "model", "batchSizeL", "efficiencyPct", "boilTimeMin", "brewerNotes"];
+const FIELDS = ["brewfatherUserId", "equipmentRecipeId", "model", "batchSizeL", "efficiencyPct", "boilTimeMin", "brewerNotes"];
 const SECRETS = ["anthropicApiKey", "brewfatherApiKey"];
 
 async function call(path, body) {
@@ -25,8 +25,32 @@ function fill(s) {
   }
 }
 
+async function loadRecipeOptions(selected) {
+  const select = $("equipmentRecipeId");
+  try {
+    const { recipes } = await call("/api/brewfather/recipes");
+    for (const r of recipes) {
+      const opt = document.createElement("option");
+      opt.value = r.id;
+      opt.textContent = r.equipment ? `${r.name} (equipment: ${r.equipment})` : r.name;
+      select.appendChild(opt);
+    }
+  } catch {
+    // No Brewfather credentials yet; only "Most recent recipe" is offered.
+  }
+  if (selected && ![...select.options].some((o) => o.value === selected)) {
+    const opt = document.createElement("option");
+    opt.value = selected;
+    opt.textContent = `Saved recipe (${selected})`;
+    select.appendChild(opt);
+  }
+  select.value = selected || "";
+}
+
 async function load() {
-  fill(await call("/api/settings"));
+  const s = await call("/api/settings");
+  fill(s);
+  await loadRecipeOptions(s.equipmentRecipeId);
 }
 
 $("settings-form").addEventListener("submit", async (e) => {
@@ -49,9 +73,12 @@ $("test-bf").addEventListener("click", async () => {
   out.className = "status";
   out.textContent = "Testing…";
   try {
-    const { counts } = await call("/api/settings/test-brewfather", {});
+    const { counts, equipment } = await call("/api/settings/test-brewfather", {});
     out.className = "status ok";
-    out.textContent = `Connected. In stock: ${counts.fermentables} fermentables, ${counts.hops} hops, ${counts.yeasts} yeasts, ${counts.miscs} misc. (Save first if you just changed the key.)`;
+    const equip = equipment
+      ? ` Equipment "${equipment.name}" (from recipe "${equipment.fromRecipe}"): efficiency ${equipment.efficiency ?? "?"}%, batch ${equipment.batchSize ?? "?"} L, boil ${equipment.boilTime ?? "?"} min.`
+      : " No equipment found (no recipes in Brewfather yet), so the defaults below are used.";
+    out.textContent = `Connected. In stock: ${counts.fermentables} fermentables, ${counts.hops} hops, ${counts.yeasts} yeasts, ${counts.miscs} misc.${equip} (Save first if you just changed a setting.)`;
   } catch (err) {
     out.className = "status bad";
     out.textContent = err.message;

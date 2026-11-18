@@ -14,6 +14,7 @@ const DEFAULTS = {
   anthropicApiKey: "",
   brewfatherUserId: "",
   brewfatherApiKey: "",
+  equipmentRecipeId: "",
   model: DEFAULT_MODEL,
   batchSizeL: 23,
   efficiencyPct: 72,
@@ -75,6 +76,7 @@ export function updateSettings(input) {
     else if (typeof input[k] === "string" && input[k].trim()) next[k] = input[k].trim();
   }
   if (typeof input.brewfatherUserId === "string") next.brewfatherUserId = input.brewfatherUserId.trim();
+  if (typeof input.equipmentRecipeId === "string") next.equipmentRecipeId = input.equipmentRecipeId.trim();
   if (typeof input.model === "string" && input.model.trim()) next.model = input.model.trim();
   if (typeof input.brewerNotes === "string") next.brewerNotes = input.brewerNotes.slice(0, 4000);
   next.batchSizeL = num(input.batchSizeL, current.batchSizeL, 1, 2000);

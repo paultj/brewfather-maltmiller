@@ -46,7 +46,14 @@ export function computeStats(recipe) {
   const ogPoints = fermentable + unfermentable;
   const og = 1 + ogPoints / 1000;
 
-  const attenuation = Math.max(0, ...recipe.yeasts.map((y) => y.attenuation_pct || 0)) || 75;
+  const yeastAttenuation = Math.max(0, ...recipe.yeasts.map((y) => y.attenuation_pct || 0)) || 75;
+  // Hotter mashes leave more unfermentable sugar. Adjust attenuation by about
+  // 1 point per degree away from 65°C (matches Brewfather more closely than
+  // the yeast figure alone).
+  const mainMashTemp = recipe.mash_steps?.length
+    ? recipe.mash_steps.reduce((a, b) => (b.time_min > a.time_min ? b : a)).temp_c
+    : 65;
+  const attenuation = yeastAttenuation - Math.max(-3, Math.min(4, mainMashTemp - 65));
   const fgPoints = fermentable * (1 - attenuation / 100) + unfermentable;
   const fg = 1 + fgPoints / 1000;
 
@@ -76,7 +83,7 @@ export function computeStats(recipe) {
     ibu: Math.round(ibu),
     srm: round(srm, 1),
     ebc: round(srm * 1.97, 1),
-    attenuation_pct: attenuation,
+    attenuation_pct: round(attenuation, 1),
     total_grain_kg: round(recipe.fermentables.reduce((s, f) => s + f.amount_kg, 0), 2),
     total_hops_g: Math.round(recipe.hops.reduce((s, h) => s + h.amount_g, 0)),
   };

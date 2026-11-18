@@ -89,7 +89,7 @@ async function send(text) {
     if (data.reply) addMessage("assistant", data.reply);
     if (data.recipe) {
       state.recipe = data.recipe;
-      state.pushed = null;
+      if (state.pushed) state.pushed.stale = true;
       renderReview();
     }
     save();
@@ -212,12 +212,7 @@ function renderReview() {
           <div class="style">${esc(r.style.name)} · BJCP ${esc(r.style.bjcp_code)}</div>
           <p class="desc">${esc(r.description)}</p>
         </div>
-        <div class="push-box">
-          <button id="push" class="btn primary" type="button">${state.pushed ? "Push again as a new recipe" : "Push to Brewfather"}</button>
-          <div id="push-result" class="push-result ${state.pushed ? "ok" : ""}">${
-            state.pushed ? `Pushed. <a href="${esc(state.pushed.url)}" target="_blank" rel="noopener">Open in Brewfather</a>` : "Review the recipe, then push it. You can keep chatting to change it."
-          }</div>
-        </div>
+        <div class="push-box">${pushBox()}</div>
       </div>
       <div class="meta-row">
         <label>Batch <input type="number" id="batch-size" min="1" step="0.5" value="${esc(r.batch_size_l)}"> L</label>
@@ -324,7 +319,11 @@ function renderReview() {
     </div>
   `;
 
-  $("#push").addEventListener("click", push);
+  $("#push").addEventListener("click", () => push(Boolean(state.pushed)));
+  $("#push-new")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    push(false);
+  });
   review.querySelectorAll(".apply-swap").forEach((btn) =>
     btn.addEventListener("click", () => {
       const sw = state.recipe.swaps[Number(btn.dataset.swap)];
@@ -358,7 +357,7 @@ async function rescale(newSize) {
     const data = await api("/api/recipe/calc", { recipe: scaled });
     state.edits.push(`scaled the batch from ${r.batch_size_l} L to ${newSize} L (fermentables, hops and additions scaled; yeast unchanged)`);
     state.recipe = data.recipe;
-    state.pushed = null;
+    if (state.pushed) state.pushed.stale = true;
     save();
     renderReview();
   } catch (err) {
@@ -366,24 +365,35 @@ async function rescale(newSize) {
   }
 }
 
-async function push() {
+function pushBox() {
+  const p = state.pushed;
+  if (!p) {
+    return `<button id="push" class="btn primary" type="button">Push to Brewfather</button>
+      <div id="push-result" class="push-result">Review the recipe, then push it. You can keep chatting to change it.</div>`;
+  }
+  const status = p.stale
+    ? "Changed since the last push."
+    : `${p.updated ? "Updated" : "Pushed"}${p.mock ? " (demo mode, nothing sent)" : ""}.`;
+  return `<button id="push" class="btn primary" type="button">Update in Brewfather</button>
+    <div id="push-result" class="push-result ${p.stale ? "" : "ok"}">${status} <a href="${esc(p.url)}" target="_blank" rel="noopener">Open in Brewfather</a></div>
+    <div class="push-result sub">Updating replaces the recipe in Brewfather, including any edits you made there. <a href="#" id="push-new">Save as a new recipe instead</a></div>`;
+}
+
+async function push(update) {
   const btn = $("#push");
   const out = $("#push-result");
   btn.disabled = true;
   out.className = "push-result";
-  out.textContent = "Pushing to Brewfather…";
+  out.textContent = update ? "Updating Brewfather…" : "Pushing to Brewfather…";
   try {
-    const result = await api("/api/recipe/push", { recipe: state.recipe });
-    state.pushed = result;
+    const result = await api("/api/recipe/push", { recipe: state.recipe, updateId: update ? state.pushed.id : undefined });
+    state.pushed = { ...result, stale: false };
     save();
-    btn.textContent = "Push again as a new recipe";
-    out.className = "push-result ok";
-    out.innerHTML = `Pushed${result.mock ? " (demo mode, nothing sent)" : ""}. <a href="${esc(result.url)}" target="_blank" rel="noopener">Open in Brewfather</a>`;
+    renderReview();
   } catch (err) {
     out.className = "push-result bad";
     const details = Array.isArray(err.details) ? ` ${err.details.map((d) => d.message || JSON.stringify(d)).join("; ")}` : err.details ? ` ${JSON.stringify(err.details)}` : "";
     out.textContent = err.message + details;
-  } finally {
     btn.disabled = false;
   }
 }

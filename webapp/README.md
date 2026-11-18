@@ -7,7 +7,8 @@ A small web app that asks the brewer *"Which beer would you like to brew?"*, des
 - **Review screen.** Grain bill, hop schedule, yeast, water, mash and fermentation steps, plus estimated OG/FG/ABV/IBU/colour. Each ingredient is marked *In stock*, *Partly in stock* or *To buy*, and a "To buy" list is built from that. You can rename the recipe or scale the batch size here.
 - **Style ranges.** Each stat is checked against the BJCP 2021 range for the style (bundled data), or against the target ranges Claude states for specialty and non-BJCP styles. Green means in range, red means out. If anything is out, the app sends the numbers back to Claude to adjust once before you see the recipe.
 - **Swaps.** Claude suggests up to 4 optional swaps using stock you have that isn't already in the recipe (e.g. leftover Munich for Vienna). Press **Apply** and Claude re-issues the recipe with the swap, adjusting amounts.
-- **Push.** Nothing goes to Brewfather until you press **Push to Brewfather**, which creates a new recipe through the Brewfather API.
+- **Push and update.** Nothing goes to Brewfather until you press **Push to Brewfather**, which creates a new recipe. After that the button becomes **Update in Brewfather**, which overwrites that same recipe with your latest changes (including any edits you made in Brewfather). "Save as a new recipe instead" creates a separate one.
+- **Your equipment.** The Brewfather API can't read equipment profiles, so the app copies the equipment from one of your Brewfather recipes (Settings → Copy equipment from; default: most recent recipe). Its efficiency is used for the app's calculations, and the copied equipment goes into every pushed recipe with this recipe's batch size and boil time.
 
 The Malt Miller basket isn't part of this app yet (see the repo root for the earlier Cloudflare Worker experiment).
 
@@ -79,7 +80,6 @@ API keys are stored server-side in `DATA_DIR/settings.json` (file mode 600) and 
 
 - The estimated stats are this app's calculations. Brewfather may show slightly different numbers, and it isn't documented whether Brewfather recalculates OG/IBU/colour for recipes created through the API. Open the pushed recipe in Brewfather to check.
 - Commercial clones rely on Claude's own knowledge (no web search yet).
-- Each push creates a **new** Brewfather recipe; pushing twice gives you two recipes.
 
 ## Tests
 

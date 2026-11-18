@@ -103,3 +103,22 @@ test("range check flags out-of-range stats and reports them", () => {
   const report = outOfRangeReport({ og: 1.06, fg: 1.013, abv: 6.2, ibu: 21, srm: 3.8 }, ranges, check);
   assert.match(report, /IBU: calculated 21, range 25–60/);
 });
+
+test("Brewfather mapping copies equipment and applies the recipe's batch, boil and efficiency", () => {
+  const equipment = { name: "Kit", batchSize: 21, boilTime: 60, efficiency: 76.4, mashEfficiency: 80 };
+  const bf = toBrewfatherRecipe({ ...MOCK_RECIPE, boil_time_min: 70, efficiency_pct: 76.4 }, MOCK_INVENTORY, equipment);
+  assert.equal(bf.equipment.name, "Kit");
+  assert.equal(bf.equipment.batchSize, 23);
+  assert.equal(bf.equipment.boilTime, 70);
+  assert.equal(bf.equipment.calcBoilVolume, true);
+  assert.equal(bf.mashEfficiency, 80);
+  assert.equal(equipment.batchSize, 21, "source equipment is not mutated");
+  assert.equal(bf.fermentables[0].lovibond, 1.8);
+  assert.equal(bf.fermentables[0].color, 1.7); // SRM
+});
+
+test("FG accounts for mash temperature", () => {
+  const cool = computeStats({ ...MOCK_RECIPE, mash_steps: [{ name: "m", temp_c: 65, time_min: 60 }] });
+  const hot = computeStats({ ...MOCK_RECIPE, mash_steps: [{ name: "m", temp_c: 68, time_min: 60 }] });
+  assert.ok(hot.fg > cool.fg);
+});

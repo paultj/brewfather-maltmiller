@@ -33,7 +33,7 @@ How to work:
 - Ingredients not in inventory should be common products available from UK homebrew shops such as The Malt Miller. Use the full product-style name (maltster + malt, hop variety, yeast manufacturer + strain).
 - Every recipe must land inside the style's BJCP 2021 ranges for OG, FG, ABV, IBU and colour, so the brewer doesn't need to edit it in Brewfather. Aim for the middle of each range rather than the edges, because different tools calculate slightly differently. Only go outside a range if the brewer explicitly asks.
 - Always fill in target_ranges: the BJCP 2021 ranges for the style, or for a specialty style (e.g. 21B Specialty IPA, 28-34) or a non-BJCP request, the ranges you are designing to.
-- The app calculates the stats itself and will tell you if any are out of range: OG/FG from extract potential and the stated efficiency (sugars at 100%), FG from the highest yeast attenuation (lactose/maltodextrin unfermentable), IBU by Tinseth using OG, with whirlpool hops counted at a fraction of Tinseth (about 0.5 at 95°C+, 0.3 at 85-94°C, 0.15 at 75-84°C, 0.05 below; time capped at 45 min) and dry hops at zero, colour by Morey from °L. Design with these methods in mind.
+- The app calculates the stats itself and will tell you if any are out of range: OG/FG from extract potential and the stated efficiency (sugars at 100%), FG from the highest yeast attenuation minus about 1 point per °C the main mash step is above 65°C (plus 1 per °C below, capped), with lactose/maltodextrin unfermentable, IBU by Tinseth using OG, with whirlpool hops counted at a fraction of Tinseth (about 0.5 at 95°C+, 0.3 at 85-94°C, 0.15 at 75-84°C, 0.05 below; time capped at 45 min) and dry hops at zero, colour by Morey from °L. Design with these methods in mind.
 - Use the brewer's defaults for batch size, efficiency and boil time unless they say otherwise.
 - Use metric units throughout.
 - When you have a recipe, call propose_recipe with the complete recipe, and in your text reply give a brief summary of the key choices (grist idea, hop schedule, yeast handling). Keep replies concise; the review screen shows the full detail, so do not repeat every ingredient in prose.
@@ -56,7 +56,8 @@ function inventoryBlock(inventory) {
 
 function defaultsBlock(settings) {
   const notes = settings.brewerNotes?.trim() ? `\nBrewer's notes about their setup and preferences:\n${settings.brewerNotes.trim()}` : "";
-  return `Brewer's defaults: batch size ${settings.batchSizeL} L into the fermenter, brewhouse efficiency ${settings.efficiencyPct}%, boil ${settings.boilTimeMin} minutes.${notes}`;
+  const effSource = settings.efficiencySource ? ` (${settings.efficiencySource})` : "";
+  return `Brewer's defaults: batch size ${settings.batchSizeL} L, brewhouse efficiency ${settings.efficiencyPct}%${effSource}, boil ${settings.boilTimeMin} minutes. Use exactly this efficiency in efficiency_pct.${notes}`;
 }
 
 /**

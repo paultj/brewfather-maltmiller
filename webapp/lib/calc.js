@@ -1,6 +1,6 @@
 // Estimated recipe stats, so the review screen shows numbers before anything
 // is pushed. Standard homebrew formulas: gravity from extract potential and
-// efficiency, Tinseth IBU, Morey colour. Brewfather may differ slightly.
+// efficiency, Tinseth IBU (calibrated to Brewfather), Morey colour.
 
 const KG_TO_LB = 2.20462;
 const L_TO_GAL = 0.264172;
@@ -32,13 +32,37 @@ function tinsethUtilisation(gravity, minutes) {
   return bigness * time;
 }
 
-// Whirlpool/hop-stand hops isomerise far less than boiling hops. Scale the
-// Tinseth figure by a temperature factor (roughly what common tools assume).
-function whirlpoolFactor(tempC) {
-  if (tempC >= 95) return 0.5;
-  if (tempC >= 85) return 0.3;
-  if (tempC >= 75) return 0.15;
-  return 0.05;
+// Calibrated against Brewfather (Tinseth) on a real recipe: 23 L, OG 1.070,
+// 15 g Magnum 14% @60 = 20.8 IBU, 40 g Citra 12.5% + 25 g Mosaic 11.2%
+// hop stand 20 min @80°C = 6.2 + 3.5 IBU. Brewfather's boil figures fit
+// Tinseth evaluated at about 73% of the OG points (i.e. a boil gravity),
+// and its hop-stand figures fit a temperature factor of 0.9 x the
+// Malowicki isomerisation rate relative to 100°C.
+const IBU_GRAVITY_FRACTION = 0.73;
+function ibuGravity(og) {
+  return 1 + (og - 1) * IBU_GRAVITY_FRACTION;
+}
+
+export function hopStandFactor(tempC) {
+  if (!(tempC > 0)) return 0;
+  const k = 2.39e11 * Math.exp(-9773 / (tempC + 273.15));
+  return Math.min(1, 0.9 * k);
+}
+
+/** Total IBU for a list of hop additions (Tinseth, calibrated as above). */
+export function computeIbu(hops, og, batchSizeL, boilTimeMin) {
+  const g = ibuGravity(og);
+  let ibu = 0;
+  for (const h of hops) {
+    const mgPerL = ((h.alpha_pct / 100) * h.amount_g * 1000) / batchSizeL;
+    if (h.use === "Boil" || h.use === "First Wort") {
+      const minutes = h.use === "First Wort" ? boilTimeMin : h.time_min;
+      ibu += mgPerL * tinsethUtilisation(g, minutes);
+    } else if (h.use === "Whirlpool") {
+      ibu += mgPerL * tinsethUtilisation(g, h.time_min) * hopStandFactor(h.temp_c);
+    }
+  }
+  return ibu;
 }
 
 export function computeStats(recipe) {
@@ -59,16 +83,7 @@ export function computeStats(recipe) {
 
   const abv = (og - fg) * 131.25;
 
-  let ibu = 0;
-  for (const h of recipe.hops) {
-    const mgPerL = ((h.alpha_pct / 100) * h.amount_g * 1000) / recipe.batch_size_l;
-    if (h.use === "Boil" || h.use === "First Wort") {
-      const minutes = h.use === "First Wort" ? recipe.boil_time_min : h.time_min;
-      ibu += mgPerL * tinsethUtilisation(og, minutes);
-    } else if (h.use === "Whirlpool") {
-      ibu += mgPerL * tinsethUtilisation(og, Math.min(h.time_min, 45)) * whirlpoolFactor(h.temp_c);
-    }
-  }
+  const ibu = computeIbu(recipe.hops, og, recipe.batch_size_l, recipe.boil_time_min);
 
   const mcu = recipe.fermentables.reduce(
     (sum, f) => sum + (f.amount_kg * KG_TO_LB * f.color_lovibond) / (recipe.batch_size_l * L_TO_GAL),

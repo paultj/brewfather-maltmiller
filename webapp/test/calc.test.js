@@ -122,3 +122,20 @@ test("FG accounts for mash temperature", () => {
   const hot = computeStats({ ...MOCK_RECIPE, mash_steps: [{ name: "m", temp_c: 68, time_min: 60 }] });
   assert.ok(hot.fg > cool.fg);
 });
+
+import { computeIbu } from "../lib/calc.js";
+
+test("IBU matches Brewfather on Paul's NEIPA hop schedule", () => {
+  const hop = (name, g, aa, use, time, temp = 0) => ({ name, amount_g: g, alpha_pct: aa, use, time_min: time, temp_c: temp });
+  const hops = [
+    hop("Magnum", 15, 14, "Boil", 60),
+    hop("Citra", 40, 12.5, "Whirlpool", 20, 80),
+    hop("Mosaic", 25, 11.2, "Whirlpool", 20, 80),
+    hop("Citra", 30, 12.5, "Dry Hop", 0),
+  ];
+  const near = (a, b, tol) => assert.ok(Math.abs(a - b) <= tol, `${a} vs ${b}`);
+  near(computeIbu([hops[0]], 1.07, 23, 70), 20.8, 0.5);
+  near(computeIbu([hops[1]], 1.07, 23, 70), 6.2, 0.3);
+  near(computeIbu([hops[2]], 1.07, 23, 70), 3.5, 0.3);
+  near(computeIbu(hops, 1.07, 23, 70), 31, 1);
+});

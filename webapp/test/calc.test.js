@@ -78,3 +78,28 @@ test("normalizeRecipe fills defaults and flags bad enum values", () => {
   assert.equal(bad.recipe.hops[0].form, "Pellet");
   assert.ok(bad.errors.some((e) => e.includes("hops[0].use")));
 });
+
+import { rangesFor, checkRanges, outOfRangeReport } from "../lib/styles.js";
+
+test("BJCP 2021 ranges are bundled and used for known styles", () => {
+  const r = rangesFor(MOCK_RECIPE);
+  assert.equal(r.source, "BJCP 2021");
+  assert.deepEqual(r.og, [1.06, 1.085]);
+  assert.deepEqual(r.ibu, [25, 60]);
+  assert.deepEqual(rangesFor({ style: { bjcp_code: "21A" } }).ibu, [40, 70]);
+});
+
+test("specialty styles fall back to the recipe's own target ranges", () => {
+  const r = rangesFor({ ...MOCK_RECIPE, style: { name: "Black IPA", bjcp_code: "21B" }, target_ranges: { ...MOCK_RECIPE.target_ranges, srm_min: 25, srm_max: 40 } });
+  assert.equal(r.source, "Recipe target");
+  assert.deepEqual(r.srm, [25, 40]);
+});
+
+test("range check flags out-of-range stats and reports them", () => {
+  const ranges = rangesFor(MOCK_RECIPE);
+  const check = checkRanges({ og: 1.0599, fg: 1.013, abv: 6.2, ibu: 21, srm: 3.8 }, ranges);
+  assert.equal(check.og, "in"); // 1.0599 rounds to 1.060
+  assert.equal(check.ibu, "out");
+  const report = outOfRangeReport({ og: 1.06, fg: 1.013, abv: 6.2, ibu: 21, srm: 3.8 }, ranges, check);
+  assert.match(report, /IBU: calculated 21, range 25–60/);
+});

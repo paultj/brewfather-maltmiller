@@ -176,6 +176,27 @@ function shoppingList(r) {
   return items;
 }
 
+function statTile(r, key, label, valueHtml, fmtRange) {
+  const range = r.ranges?.[key];
+  const status = r.rangeCheck?.[key];
+  const rangeText = range ? `${fmtRange(range[0])} – ${fmtRange(range[1])}` : "No range";
+  const statusText = status === "in" ? "In range" : status === "out" ? "Out of range" : "";
+  return `<div class="stat ${status || ""}" title="${esc(statusText)}">
+    <div class="label">${label}${status ? `<span class="dot" aria-label="${statusText}"></span>` : ""}</div>
+    <div class="value">${valueHtml}</div>
+    <div class="range">${rangeText}</div>
+  </div>`;
+}
+
+function statsSummary(r) {
+  if (!r.ranges) return "";
+  const out = Object.values(r.rangeCheck || {}).filter((v) => v === "out").length;
+  const what = r.ranges.source === "BJCP 2021" ? `BJCP 2021 ${esc(r.ranges.label)}` : `target for ${esc(r.ranges.label)}`;
+  return out
+    ? ` · <span class="range-flag out">${out} out of range</span> <span class="range-src">vs ${what}</span>`
+    : ` · <span class="range-flag in">All in range</span> <span class="range-src">vs ${what}</span>`;
+}
+
 function renderReview() {
   const r = state.recipe;
   if (!r) return;
@@ -206,13 +227,13 @@ function renderReview() {
     </div>
 
     <div class="card">
-      <h3>Estimated stats</h3>
+      <h3>Estimated stats${statsSummary(r)}</h3>
       <div class="stats">
-        <div class="stat"><div class="label">OG</div><div class="value">${s.og.toFixed(3)}</div></div>
-        <div class="stat"><div class="label">FG</div><div class="value">${s.fg.toFixed(3)}</div></div>
-        <div class="stat"><div class="label">ABV</div><div class="value">${fmt(s.abv, 1)}%</div></div>
-        <div class="stat"><div class="label">IBU</div><div class="value">${s.ibu}</div></div>
-        <div class="stat"><div class="label">Colour</div><div class="value"><span class="swatch" style="background:${srmColour(s.srm)}"></span>${fmt(s.ebc, 0)} EBC</div></div>
+        ${statTile(r, "og", "OG", s.og.toFixed(3), (v) => v.toFixed(3))}
+        ${statTile(r, "fg", "FG", s.fg.toFixed(3), (v) => v.toFixed(3))}
+        ${statTile(r, "abv", "ABV", `${fmt(s.abv, 1)}%`, (v) => `${fmt(v, 1)}%`)}
+        ${statTile(r, "ibu", "IBU", s.ibu, (v) => fmt(v, 0))}
+        ${statTile(r, "srm", "Colour", `<span class="swatch" style="background:${srmColour(s.srm)}"></span>${fmt(s.ebc, 0)} EBC`, (v) => `${fmt(v * 1.97, 0)} EBC`)}
       </div>
       <div class="hint" style="margin-top:8px">Calculated by this app (Tinseth IBU, Morey colour). Brewfather may show slightly different numbers.</div>
     </div>

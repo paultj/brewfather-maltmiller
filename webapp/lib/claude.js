@@ -3,6 +3,8 @@
 // is only sent to Brewfather when the brewer presses Push.
 import Anthropic from "@anthropic-ai/sdk";
 import { RECIPE_SCHEMA, normalizeRecipe } from "./recipe-schema.js";
+import { computeStats } from "./calc.js";
+import { rangesFor, checkRanges, outOfRangeReport } from "./styles.js";
 
 const TOOL = {
   name: "propose_recipe",
@@ -29,7 +31,10 @@ How to work:
 - Also suggest up to 4 optional swaps (the recipe's "swaps" list) where an inventory item NOT already used in the recipe could reasonably replace one of the recipe's ingredients, e.g. leftover Munich instead of Vienna, or a stocked hop instead of one that must be bought. Only suggest swaps that keep the beer true to the request and style, and say in the reason how the beer changes and any amount adjustment. Never suggest swaps from outside the inventory. An empty list is fine.
 - If the brewer asks to apply a swap, re-issue the full recipe with that swap made, adjusting amounts (alpha acid, colour, extract) so the beer stays on target, and drop that swap from the swaps list.
 - Ingredients not in inventory should be common products available from UK homebrew shops such as The Malt Miller. Use the full product-style name (maltster + malt, hop variety, yeast manufacturer + strain).
-- Hit the style's BJCP 2021 ranges for OG, FG, ABV, IBU and colour unless the brewer asks otherwise. Use the brewer's defaults for batch size, efficiency and boil time unless they say otherwise.
+- Every recipe must land inside the style's BJCP 2021 ranges for OG, FG, ABV, IBU and colour, so the brewer doesn't need to edit it in Brewfather. Aim for the middle of each range rather than the edges, because different tools calculate slightly differently. Only go outside a range if the brewer explicitly asks.
+- Always fill in target_ranges: the BJCP 2021 ranges for the style, or for a specialty style (e.g. 21B Specialty IPA, 28-34) or a non-BJCP request, the ranges you are designing to.
+- The app calculates the stats itself and will tell you if any are out of range: OG/FG from extract potential and the stated efficiency (sugars at 100%), FG from the highest yeast attenuation (lactose/maltodextrin unfermentable), IBU by Tinseth using OG, with whirlpool hops counted at a fraction of Tinseth (about 0.5 at 95°C+, 0.3 at 85-94°C, 0.15 at 75-84°C, 0.05 below; time capped at 45 min) and dry hops at zero, colour by Morey from °L. Design with these methods in mind.
+- Use the brewer's defaults for batch size, efficiency and boil time unless they say otherwise.
 - Use metric units throughout.
 - When you have a recipe, call propose_recipe with the complete recipe, and in your text reply give a brief summary of the key choices (grist idea, hop schedule, yeast handling). Keep replies concise; the review screen shows the full detail, so do not repeat every ingredient in prose.
 - When the brewer asks for changes, call propose_recipe again with the full revised recipe.`;
@@ -94,12 +99,15 @@ export async function chatTurn({ settings, inventory, history, text }) {
       messages: msgs,
     });
 
-  // Ask Claude, and if its recipe doesn't validate, send the problems back
-  // and let it try again (up to two retries).
+  // Ask Claude. If its recipe doesn't validate, send the problems back (up to
+  // two retries). If it validates but the app's calculated stats fall outside
+  // the style ranges, ask Claude to adjust once.
   let reply = "";
   let recipe = null;
   let response;
-  for (let attempt = 0; attempt < 3; attempt++) {
+  let validationRetries = 0;
+  let rangeFixAsked = false;
+  for (let attempt = 0; attempt < 5; attempt++) {
     response = await request(messages);
 
     if (response.stop_reason === "refusal") {
@@ -118,25 +126,44 @@ export async function chatTurn({ settings, inventory, history, text }) {
     if (!toolUse) break;
 
     const { recipe: normalized, errors } = normalizeRecipe(toolUse.input);
-    if (!errors.length) {
-      recipe = normalized;
-      break;
+    if (errors.length) {
+      if (validationRetries >= 2) {
+        reply += `\n\n(The recipe I produced had problems I couldn't fix: ${errors.join("; ")}. Ask me to try again.)`;
+        // Close the tool call so the conversation stays valid.
+        messages.push({ role: "user", content: [{ type: "tool_result", tool_use_id: toolUse.id, is_error: true, content: errors.join("\n") }] });
+        messages.push({ role: "assistant", content: [{ type: "text", text: "Sorry, I couldn't produce a valid recipe that time." }] });
+        break;
+      }
+      validationRetries++;
+      messages.push({
+        role: "user",
+        content: [
+          {
+            type: "tool_result",
+            tool_use_id: toolUse.id,
+            is_error: true,
+            content: `The recipe was not accepted. Fix these problems and call propose_recipe again with the complete recipe:\n${errors.join("\n")}`,
+          },
+        ],
+      });
+      continue;
     }
-    if (attempt === 2) {
-      reply += `\n\n(The recipe I produced had problems I couldn't fix: ${errors.join("; ")}. Ask me to try again.)`;
-      // Close the tool call so the conversation stays valid.
-      messages.push({ role: "user", content: [{ type: "tool_result", tool_use_id: toolUse.id, is_error: true, content: errors.join("\n") }] });
-      messages.push({ role: "assistant", content: [{ type: "text", text: "Sorry, I couldn't produce a valid recipe that time." }] });
-      break;
-    }
+
+    recipe = normalized;
+    if (rangeFixAsked) break;
+    const ranges = rangesFor(recipe);
+    const stats = computeStats(recipe);
+    const report = outOfRangeReport(stats, ranges, checkRanges(stats, ranges));
+    if (!report) break;
+
+    rangeFixAsked = true;
     messages.push({
       role: "user",
       content: [
         {
           type: "tool_result",
           tool_use_id: toolUse.id,
-          is_error: true,
-          content: `The recipe was not accepted. Fix these problems and call propose_recipe again with the complete recipe:\n${errors.join("\n")}`,
+          content: `${report}\n\nAdjust the recipe so every stat is inside its range (aim for the middle), then call propose_recipe again with the complete recipe. Mention the adjustment briefly in your reply.`,
         },
       ],
     });

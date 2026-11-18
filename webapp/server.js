@@ -18,6 +18,7 @@ import { getInventory, createRecipe, testConnection, BrewfatherError } from "./l
 import { chatTurn } from "./lib/claude.js";
 import { computeStats, annotateStock } from "./lib/calc.js";
 import { validateRecipe } from "./lib/recipe-schema.js";
+import { rangesFor, checkRanges } from "./lib/styles.js";
 import { MOCK_INVENTORY, mockChatTurn } from "./lib/mock.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -123,7 +124,9 @@ app.get("/api/inventory", async (req, res) => {
 });
 
 function prepareRecipe(recipe, inventory) {
-  return { ...annotateStock(recipe, inventory), stats: computeStats(recipe) };
+  const stats = computeStats(recipe);
+  const ranges = rangesFor(recipe);
+  return { ...annotateStock(recipe, inventory), stats, ranges, rangeCheck: checkRanges(stats, ranges) };
 }
 
 // ---- Chat ----

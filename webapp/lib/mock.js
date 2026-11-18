@@ -20,6 +20,7 @@ export const MOCK_RECIPE = {
   name: "Passion Haze",
   description: "A soft, juicy NEIPA built to showcase the tropical character of the yeast, with Citra and Mosaic layered on top.",
   style: { name: "Hazy IPA", bjcp_code: "21C" },
+  target_ranges: { og_min: 1.06, og_max: 1.085, fg_min: 1.01, fg_max: 1.015, abv_min: 6, abv_max: 9, ibu_min: 25, ibu_max: 60, srm_min: 3, srm_max: 7 },
   batch_size_l: 23,
   boil_time_min: 60,
   efficiency_pct: 72,

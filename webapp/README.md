@@ -5,6 +5,7 @@ A small web app that asks the brewer *"Which beer would you like to brew?"*, des
 - **Chat.** Ask Claude to clone a commercial beer, design to a BJCP 2021 style, or build around ingredients you have. Keep chatting to refine the recipe.
 - **Inventory aware.** Your Brewfather inventory (fermentables, hops, yeasts, misc) is loaded and given to Claude, which uses what you have where it suits the beer.
 - **Review screen.** Grain bill, hop schedule, yeast, water, mash and fermentation steps, plus estimated OG/FG/ABV/IBU/colour. Each ingredient is marked *In stock*, *Partly in stock* or *To buy*, and a "To buy" list is built from that. You can rename the recipe or scale the batch size here.
+- **Style ranges.** Each stat is checked against the BJCP 2021 range for the style (bundled data), or against the target ranges Claude states for specialty and non-BJCP styles. Green means in range, red means out. If anything is out, the app sends the numbers back to Claude to adjust once before you see the recipe.
 - **Swaps.** Claude suggests up to 4 optional swaps using stock you have that isn't already in the recipe (e.g. leftover Munich for Vienna). Press **Apply** and Claude re-issues the recipe with the swap, adjusting amounts.
 - **Push.** Nothing goes to Brewfather until you press **Push to Brewfather**, which creates a new recipe through the Brewfather API.
 
@@ -69,6 +70,7 @@ API keys are stored server-side in `DATA_DIR/settings.json` (file mode 600) and 
 
 - `server.js`: Express app, login, JSON API.
 - `lib/claude.js`: the chat. Claude gets a system prompt with your defaults and inventory, and calls a `propose_recipe` tool (JSON schema in `lib/recipe-schema.js`; the input is validated and Claude is asked to fix any problems) whenever it has a full recipe. Uses the server-side refusal fallback so a declined request is retried on another model.
+- `lib/styles.js` + `lib/bjcp-2021.json`: BJCP 2021 style ranges (from [BeerJSON bjcp-json](https://github.com/beerjson/bjcp-json), MIT) and the in/out-of-range check.
 - `lib/calc.js`: OG/FG (extract potential × efficiency), IBU (Tinseth, with a temperature-scaled factor for whirlpool hops), colour (Morey), and stock checks against inventory.
 - `lib/brewfather.js`: reads inventory (cached for 5 minutes) and creates the recipe with `POST /v2/recipes`. Ingredients matched to inventory carry over Brewfather's own ingredient data.
 - The conversation lives only in the browser tab (sessionStorage). Nothing is saved on the server except settings.

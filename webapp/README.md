@@ -68,7 +68,7 @@ API keys are stored server-side in `DATA_DIR/settings.json` (file mode 600) and 
 ## How it works
 
 - `server.js`: Express app, login, JSON API.
-- `lib/claude.js`: the chat. Claude gets a system prompt with your defaults and inventory, and calls a `propose_recipe` tool (strict JSON schema in `lib/recipe-schema.js`) whenever it has a full recipe. Uses the server-side refusal fallback so a declined request is retried on another model.
+- `lib/claude.js`: the chat. Claude gets a system prompt with your defaults and inventory, and calls a `propose_recipe` tool (JSON schema in `lib/recipe-schema.js`; the input is validated and Claude is asked to fix any problems) whenever it has a full recipe. Uses the server-side refusal fallback so a declined request is retried on another model.
 - `lib/calc.js`: OG/FG (extract potential × efficiency), IBU (Tinseth, with a temperature-scaled factor for whirlpool hops), colour (Morey), and stock checks against inventory.
 - `lib/brewfather.js`: reads inventory (cached for 5 minutes) and creates the recipe with `POST /v2/recipes`. Ingredients matched to inventory carry over Brewfather's own ingredient data.
 - The conversation lives only in the browser tab (sessionStorage). Nothing is saved on the server except settings.

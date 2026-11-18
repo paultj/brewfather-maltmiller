@@ -63,3 +63,18 @@ test("swaps: only inventory items not already in the recipe are kept", () => {
   assert.equal(r.swaps[0].have, 1);
   assert.equal(r.swaps[0].unit, "kg");
 });
+
+import { normalizeRecipe } from "../lib/recipe-schema.js";
+
+test("normalizeRecipe fills defaults and flags bad enum values", () => {
+  const { swaps, notes, ...partial } = MOCK_RECIPE;
+  const ok = normalizeRecipe({ ...partial, batch_size_l: "23" });
+  assert.deepEqual(ok.errors, []);
+  assert.deepEqual(ok.recipe.swaps, []);
+  assert.equal(ok.recipe.notes, "");
+  assert.equal(ok.recipe.batch_size_l, 23);
+
+  const bad = normalizeRecipe({ ...MOCK_RECIPE, hops: [{ ...MOCK_RECIPE.hops[0], use: "hopstand", form: "pellet" }] });
+  assert.equal(bad.recipe.hops[0].form, "Pellet");
+  assert.ok(bad.errors.some((e) => e.includes("hops[0].use")));
+});

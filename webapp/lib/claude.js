@@ -2,15 +2,17 @@
 // calls the `propose_recipe` tool. The app shows that recipe for review; it
 // is only sent to Brewfather when the brewer presses Push.
 import Anthropic from "@anthropic-ai/sdk";
-import { RECIPE_SCHEMA } from "./recipe-schema.js";
+import { RECIPE_SCHEMA, normalizeRecipe } from "./recipe-schema.js";
 
 const TOOL = {
   name: "propose_recipe",
   description:
     "Show a complete recipe to the brewer for review. Call this every time you have a full recipe or a revised version of one; " +
     "the brewer sees it on a review screen with calculated OG/FG/ABV/IBU/colour and stock levels, and decides whether to push it to Brewfather. " +
-    "Always send the whole recipe, never a partial update.",
-  strict: true,
+    "Always send the whole recipe, never a partial update. Fill in every field in the schema.",
+  // Not `strict`: the recipe schema is too large for strict-mode grammar
+  // compilation. The input is validated in normalizeRecipe() instead, and
+  // Claude is asked to fix any problems.
   input_schema: RECIPE_SCHEMA,
 };
 
@@ -78,35 +80,71 @@ export async function chatTurn({ settings, inventory, history, text }) {
   userContent.push({ type: "text", text });
   const messages = [...history, { role: "user", content: userContent }];
 
-  const response = await client.beta.messages.create({
-    model: settings.model,
-    max_tokens: 16000,
-    betas: ["server-side-fallback-2026-07-01"],
-    fallbacks: "default",
-    system: [
-      { type: "text", text: SYSTEM_INSTRUCTIONS },
-      { type: "text", text: `${defaultsBlock(settings)}\n\n${inventoryBlock(inventory)}`, cache_control: { type: "ephemeral" } },
-    ],
-    tools: [TOOL],
-    messages,
-  });
+  const request = (msgs) =>
+    client.beta.messages.create({
+      model: settings.model,
+      max_tokens: 16000,
+      betas: ["server-side-fallback-2026-07-01"],
+      fallbacks: "default",
+      system: [
+        { type: "text", text: SYSTEM_INSTRUCTIONS },
+        { type: "text", text: `${defaultsBlock(settings)}\n\n${inventoryBlock(inventory)}`, cache_control: { type: "ephemeral" } },
+      ],
+      tools: [TOOL],
+      messages: msgs,
+    });
 
-  if (response.stop_reason === "refusal") {
-    throw Object.assign(new Error("Claude declined this request. Try rephrasing it."), { status: 422 });
-  }
-
+  // Ask Claude, and if its recipe doesn't validate, send the problems back
+  // and let it try again (up to two retries).
   let reply = "";
   let recipe = null;
-  for (const block of response.content) {
-    if (block.type === "text") reply += (reply ? "\n\n" : "") + block.text;
-    if (block.type === "tool_use" && block.name === "propose_recipe") recipe = block.input;
+  let response;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    response = await request(messages);
+
+    if (response.stop_reason === "refusal") {
+      throw Object.assign(new Error("Claude declined this request. Try rephrasing it."), { status: 422 });
+    }
+
+    // Keep the assistant turn exactly as returned (thinking blocks included)
+    // so later requests replay the conversation unchanged.
+    messages.push({ role: "assistant", content: response.content });
+
+    let toolUse = null;
+    for (const block of response.content) {
+      if (block.type === "text") reply += (reply ? "\n\n" : "") + block.text;
+      if (block.type === "tool_use" && block.name === "propose_recipe") toolUse = block;
+    }
+    if (!toolUse) break;
+
+    const { recipe: normalized, errors } = normalizeRecipe(toolUse.input);
+    if (!errors.length) {
+      recipe = normalized;
+      break;
+    }
+    if (attempt === 2) {
+      reply += `\n\n(The recipe I produced had problems I couldn't fix: ${errors.join("; ")}. Ask me to try again.)`;
+      // Close the tool call so the conversation stays valid.
+      messages.push({ role: "user", content: [{ type: "tool_result", tool_use_id: toolUse.id, is_error: true, content: errors.join("\n") }] });
+      messages.push({ role: "assistant", content: [{ type: "text", text: "Sorry, I couldn't produce a valid recipe that time." }] });
+      break;
+    }
+    messages.push({
+      role: "user",
+      content: [
+        {
+          type: "tool_result",
+          tool_use_id: toolUse.id,
+          is_error: true,
+          content: `The recipe was not accepted. Fix these problems and call propose_recipe again with the complete recipe:\n${errors.join("\n")}`,
+        },
+      ],
+    });
   }
+
   if (response.stop_reason === "max_tokens" && !recipe) {
     reply += "\n\n(The reply was cut off. Ask me to continue or to propose the recipe again.)";
   }
 
-  // Keep the assistant turn exactly as returned (thinking blocks included)
-  // so the next request replays the conversation unchanged.
-  const newHistory = [...messages, { role: "assistant", content: response.content }];
-  return { history: newHistory, reply: reply || (recipe ? "Here's the recipe. Have a look at the review panel." : ""), recipe };
+  return { history: messages, reply: reply || (recipe ? "Here's the recipe. Have a look at the review panel." : ""), recipe };
 }

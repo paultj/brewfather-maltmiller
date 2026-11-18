@@ -126,3 +126,57 @@ export function validateRecipe(r) {
   });
   return errors;
 }
+
+// Fill in defaults and coerce types so a recipe from Claude (tool input is
+// not strictly enforced) matches RECIPE_SCHEMA. Returns problems that
+// Claude needs to fix itself (unknown enum values, missing core data).
+function coerce(schema, value, path, errors) {
+  if (schema.type === "object") {
+    const src = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+    if (value !== undefined && src !== value) errors.push(`${path} must be an object`);
+    const out = {};
+    for (const [key, sub] of Object.entries(schema.properties)) {
+      out[key] = coerce(sub, src[key], path ? `${path}.${key}` : key, errors);
+    }
+    return out;
+  }
+  if (schema.type === "array") {
+    if (value === undefined || value === null) return [];
+    if (!Array.isArray(value)) {
+      errors.push(`${path} must be a list`);
+      return [];
+    }
+    return value.map((item, i) => coerce(schema.items, item, `${path}[${i}]`, errors));
+  }
+  if (schema.type === "number") {
+    if (value === undefined || value === null || value === "") return 0;
+    const n = typeof value === "number" ? value : Number(String(value).replace(/[^0-9.\-]/g, ""));
+    if (!Number.isFinite(n)) {
+      errors.push(`${path} must be a number`);
+      return 0;
+    }
+    return n;
+  }
+  // string
+  if (value === undefined || value === null) {
+    if (schema.enum) errors.push(`${path} is missing (one of: ${schema.enum.join(", ")})`);
+    return schema.enum ? schema.enum[0] : "";
+  }
+  const str = String(value);
+  if (schema.enum) {
+    const match = schema.enum.find((e) => e.toLowerCase() === str.trim().toLowerCase());
+    if (!match) {
+      errors.push(`${path} is "${str}" but must be one of: ${schema.enum.join(", ")}`);
+      return schema.enum[0];
+    }
+    return match;
+  }
+  return str;
+}
+
+export function normalizeRecipe(input) {
+  const errors = [];
+  const recipe = coerce(RECIPE_SCHEMA, input, "", errors);
+  if (!errors.length) errors.push(...validateRecipe(recipe));
+  return { recipe, errors };
+}

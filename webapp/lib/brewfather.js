@@ -98,7 +98,8 @@ let equipmentCache = { key: "", at: 0, data: null };
  * The equipment profile to use for new recipes, copied from an existing
  * Brewfather recipe (the API has no equipment endpoint). Uses the recipe
  * chosen in Settings, or the most recent recipe. Cached for 5 minutes.
- * Returns { equipment, fromRecipe } or null if there are no recipes.
+ * Also returns that recipe's water setup and style code.
+ * Returns { equipment, water, styleCode, fromRecipe } or null if there are no recipes.
  */
 export async function getEquipment(settings, { refresh = false } = {}) {
   const key = `${settings.brewfatherUserId}:${settings.brewfatherApiKey.slice(-6)}:${settings.equipmentRecipeId || "latest"}`;
@@ -113,7 +114,14 @@ export async function getEquipment(settings, { refresh = false } = {}) {
   let data = null;
   if (id) {
     const full = await bf(settings, "GET", `/recipes/${encodeURIComponent(id)}`);
-    if (full?.equipment) data = { equipment: full.equipment, fromRecipe: { id: full._id || id, name: full.name } };
+    if (full?.equipment || full?.water) {
+      data = {
+        equipment: full.equipment || null,
+        water: full.water || null,
+        styleCode: full.style ? `${full.style.categoryNumber || ""}${full.style.styleLetter || ""}`.toUpperCase() : "",
+        fromRecipe: { id: full._id || id, name: full.name },
+      };
+    }
   }
   equipmentCache = { key, at: Date.now(), data };
   return data;
@@ -174,9 +182,31 @@ function equipmentFor(recipe, equipment) {
   return copy;
 }
 
-export function toBrewfatherRecipe(recipe, inventory, equipment = null) {
+// Water treatment is left to Brewfather's water calculator. Copy the
+// brewer's water setup (source water report, settings and, when the template
+// recipe is the same style, the target profile) but not the salt and acid
+// amounts or anything volume-dependent: those are recalculated in Brewfather.
+const WATER_SKIP = new Set([
+  "mash", "sparge", "total", "diluted",
+  "mashAdjustments", "spargeAdjustments", "totalAdjustments",
+  "sourceTargetDiff", "mashTargetDiff", "spargeTargetDiff", "totalTargetDiff",
+  "mashWaterAmount", "spargeWaterAmount", "dilutionAmount",
+  "mashPh", "mashPhDistilled", "acidPhAdjustment", "spargeAcidPhAdjustment",
+]);
+
+export function waterFor(recipe, template) {
+  if (!template?.water) return null;
+  const copy = {};
+  for (const [k, v] of Object.entries(template.water)) if (!WATER_SKIP.has(k)) copy[k] = v;
+  const sameStyle = template.styleCode && template.styleCode === String(recipe.style?.bjcp_code || "").toUpperCase();
+  if (!sameStyle) copy.target = null;
+  return copy;
+}
+
+export function toBrewfatherRecipe(recipe, inventory, equipment = null, template = null) {
   const stats = computeStats(recipe);
   const equip = equipmentFor(recipe, equipment);
+  const water = waterFor(recipe, template);
 
   const fermentables = recipe.fermentables.map((f) => ({
     ...fromInventory(inventory, "fermentables", f.inventory_id),
@@ -229,7 +259,7 @@ export function toBrewfatherRecipe(recipe, inventory, equipment = null) {
     type: m.type,
   }));
 
-  const notes = [recipe.description, recipe.water_notes && `Water: ${recipe.water_notes}`, recipe.notes]
+  const notes = [recipe.description, recipe.water_notes && `Water (set up in Brewfather's water calculator): ${recipe.water_notes}`, recipe.notes]
     .filter(Boolean)
     .join("\n\n");
 
@@ -240,6 +270,7 @@ export function toBrewfatherRecipe(recipe, inventory, equipment = null) {
     boilTime: recipe.boil_time_min,
     efficiency: recipe.efficiency_pct,
     ...(equip ? { equipment: equip } : {}),
+    ...(water ? { water } : {}),
     ...(equip && equip.mashEfficiency != null ? { mashEfficiency: equip.mashEfficiency } : {}),
     style: {
       name: recipe.style.name,
@@ -282,16 +313,16 @@ function recipeUrl(id) {
   return id ? `https://web.brewfather.app/tabs/recipes/recipe/${id}` : "https://web.brewfather.app/tabs/recipes";
 }
 
-export async function createRecipe(settings, recipe, inventory, equipment) {
-  const body = toBrewfatherRecipe(recipe, inventory, equipment);
+export async function createRecipe(settings, recipe, inventory, template) {
+  const body = toBrewfatherRecipe(recipe, inventory, template?.equipment, template);
   const result = await bf(settings, "POST", "/recipes", body);
   const id = result?.id || result?._id;
   return { id, url: recipeUrl(id) };
 }
 
 /** Overwrite an existing Brewfather recipe (PATCH replaces each top-level field sent). */
-export async function updateRecipe(settings, id, recipe, inventory, equipment) {
-  const body = toBrewfatherRecipe(recipe, inventory, equipment);
+export async function updateRecipe(settings, id, recipe, inventory, template) {
+  const body = toBrewfatherRecipe(recipe, inventory, template?.equipment, template);
   await bf(settings, "PATCH", `/recipes/${encodeURIComponent(id)}`, body);
   return { id, url: recipeUrl(id), updated: true };
 }

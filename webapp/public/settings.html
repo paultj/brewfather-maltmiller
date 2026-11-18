@@ -42,11 +42,11 @@
           <div class="help" id="brewfatherApiKeyHelp">In Brewfather: Settings → API → Generate API key. Tick <b>Read Inventory</b> and <b>Edit Recipes</b> (recipes.write). Leave blank to keep the saved key.</div>
         </div>
         <div class="field">
-          <label for="equipmentRecipeId">Copy equipment from</label>
+          <label for="equipmentRecipeId">Copy equipment and water from</label>
           <select id="equipmentRecipeId">
             <option value="">Most recent recipe</option>
           </select>
-          <div class="help">The Brewfather API can't read equipment profiles directly, so the app copies the equipment (boil-off, losses, efficiency, batch volume type) from one of your recipes. Pick a recipe that uses the equipment profile you brew with. Its efficiency is used for every recipe.</div>
+          <div class="help">The Brewfather API can't read equipment profiles directly, so the app copies them from one of your recipes: the equipment (boil-off, losses, efficiency, batch volume type) and the water setup (your source water report; the target profile too when the new recipe is the same style). Pick a recipe that uses your usual equipment and water. Salt amounts are left for Brewfather's water calculator.</div>
         </div>
         <div class="actions">
           <button type="button" id="test-bf" class="btn">Test connection</button>

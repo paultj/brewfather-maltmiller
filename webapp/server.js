@@ -14,7 +14,7 @@ import {
   clearLoginFailures,
 } from "./lib/auth.js";
 import { loadSettings, publicSettings, updateSettings, DATA_DIR } from "./lib/settings.js";
-import { getInventory, createRecipe, updateRecipe, testConnection, listRecipes, getEquipment, equipmentEfficiency, BrewfatherError } from "./lib/brewfather.js";
+import { getInventory, createRecipe, updateRecipe, testConnection, listRecipes, getEquipment, equipmentEfficiency, waterFor, BrewfatherError } from "./lib/brewfather.js";
 import { chatTurn } from "./lib/claude.js";
 import { computeStats, annotateStock } from "./lib/calc.js";
 import { validateRecipe } from "./lib/recipe-schema.js";
@@ -105,7 +105,7 @@ app.post("/api/settings/test-brewfather", async (req, res) => {
     res.json({
       ok: true,
       counts: Object.fromEntries(Object.entries(inv).map(([k, v]) => [k, v.length])),
-      equipment: equip
+      equipment: equip?.equipment
         ? {
             name: equip.equipment.name || "(unnamed)",
             fromRecipe: equip.fromRecipe.name,
@@ -114,6 +114,7 @@ app.post("/api/settings/test-brewfather", async (req, res) => {
             boilTime: equip.equipment.boilTime,
           }
         : null,
+      water: equip?.water ? { source: equip.water.source?.name || "", target: equip.water.target?.name || "", fromRecipe: equip.fromRecipe.name } : null,
     });
   } catch (err) {
     sendError(res, err);
@@ -231,9 +232,15 @@ app.post("/api/recipe/push", async (req, res) => {
     const inventory = await inventoryFor(settings).catch(() => null);
     const { equip } = await effectiveSettings(settings);
     const result = updateId
-      ? await updateRecipe(settings, updateId, recipe, inventory, equip?.equipment)
-      : await createRecipe(settings, recipe, inventory, equip?.equipment);
-    res.json({ ...result, equipment: equip ? equip.equipment.name || equip.fromRecipe.name : null });
+      ? await updateRecipe(settings, updateId, recipe, inventory, equip)
+      : await createRecipe(settings, recipe, inventory, equip);
+    res.json({
+      ...result,
+      equipment: equip?.equipment ? equip.equipment.name || equip.fromRecipe.name : null,
+      water: equip?.water
+        ? { source: equip.water.source?.name || "", targetCopied: Boolean(waterFor(recipe, equip)?.target) }
+        : null,
+    });
   } catch (err) {
     sendError(res, err);
   }

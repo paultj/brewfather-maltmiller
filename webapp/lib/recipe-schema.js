@@ -84,7 +84,7 @@ export const RECIPE_SCHEMA = obj({
   ),
   miscs: arr(
     obj({
-      name: str("e.g. 'Gypsum', 'Calcium Chloride', 'Protafloc', 'Yeast nutrient'."),
+      name: str("e.g. 'Protafloc', 'Campden tablet', 'Yeast nutrient'. Never water salts or acids."),
       inventory_id: inventoryId,
       amount: numb("Amount, in the unit below."),
       unit: enumOf(["g", "ml", "tsp", "items"], "Unit for amount."),
@@ -92,7 +92,7 @@ export const RECIPE_SCHEMA = obj({
       time_min: numb("Minutes (boil time remaining for boil additions), else 0."),
       type: enumOf(["Water Agent", "Fining", "Spice", "Flavor", "Herb", "Other"], "Misc type."),
     }),
-    "Water salts, finings, nutrients and other additions. Empty array if none.",
+    "Finings, Campden, nutrients, spices and other additions (not water salts or acids). Empty array if none.",
   ),
   mash_steps: arr(
     obj({ name: str("Step name."), temp_c: numb("Temperature, C."), time_min: numb("Minutes.") }),
@@ -102,7 +102,7 @@ export const RECIPE_SCHEMA = obj({
     obj({ name: str("e.g. 'Primary', 'Free rise', 'Cold crash'."), temp_c: numb("Temperature, C."), days: numb("Days.") }),
     "Fermentation schedule.",
   ),
-  water_notes: str("Target water profile / chloride:sulphate guidance, or empty string."),
+  water_notes: str("One line: which Brewfather water target profile to pick and the chloride:sulphate direction. No salt amounts. Or empty string."),
   notes: str("Brewing tips specific to this recipe (e.g. oxygen pick-up on dry hops), or empty string."),
   swaps: arr(
     obj({
@@ -186,9 +186,19 @@ function coerce(schema, value, path, errors) {
   return str;
 }
 
+// Water treatment is done in Brewfather's water calculator, so drop any
+// brewing salts or acids that slip into the recipe (Campden is kept).
+const WATER_TREATMENT =
+  /\b(gypsum|calcium (chloride|sulphate|sulfate|carbonate)|cacl2|caso4|epsom|magnesium (sulphate|sulfate|chloride)|chalk|baking soda|sodium (bi)?carbonate|bicarbonate|table salt|sodium chloride|canning salt|crs|ams|dwb|lactic acid|phosphoric acid|acid blend|acidulated|sauermalz|ro water|reverse osmosis|distilled water)\b/i;
+
+export function isWaterTreatment(name) {
+  return WATER_TREATMENT.test(String(name || "")) && !/campden|metabisulph|metabisulf/i.test(String(name || ""));
+}
+
 export function normalizeRecipe(input) {
   const errors = [];
   const recipe = coerce(RECIPE_SCHEMA, input, "", errors);
+  recipe.miscs = recipe.miscs.filter((m) => !isWaterTreatment(m.name));
   if (!errors.length) errors.push(...validateRecipe(recipe));
   return { recipe, errors };
 }

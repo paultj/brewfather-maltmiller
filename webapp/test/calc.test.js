@@ -139,3 +139,32 @@ test("IBU matches Brewfather on Paul's NEIPA hop schedule", () => {
   near(computeIbu([hops[2]], 1.07, 23, 70), 3.5, 0.3);
   near(computeIbu(hops, 1.07, 23, 70), 31, 1);
 });
+
+import { waterFor } from "../lib/brewfather.js";
+import { isWaterTreatment } from "../lib/recipe-schema.js";
+
+test("water: source copied, salts dropped, target only for the same style", () => {
+  const water = {
+    source: { name: "Murphy's report", bicarbonate: 240 },
+    target: { name: "Hazy IPA (NEIPA)" },
+    settings: { adjustSparge: true },
+    mashAdjustments: { calciumSulfate: 0.27 },
+    mashPh: 5.6,
+  };
+  const same = waterFor(MOCK_RECIPE, { water, styleCode: "21C" });
+  assert.equal(same.source.name, "Murphy's report");
+  assert.equal(same.target.name, "Hazy IPA (NEIPA)");
+  assert.equal(same.mashAdjustments, undefined);
+  assert.equal(same.mashPh, undefined);
+  const other = waterFor({ ...MOCK_RECIPE, style: { name: "Stout", bjcp_code: "15B" } }, { water, styleCode: "21C" });
+  assert.equal(other.target, null);
+  assert.equal(waterFor(MOCK_RECIPE, null), null);
+});
+
+test("water salts and acids are removed from recipes, Campden is kept", () => {
+  for (const n of ["Gypsum", "Calcium Chloride", "Epsom Salt", "Lactic Acid 80%", "CRS"]) assert.ok(isWaterTreatment(n), n);
+  for (const n of ["Campden tablet", "Protafloc", "Yeast nutrient", "Sodium metabisulphite"]) assert.ok(!isWaterTreatment(n), n);
+  const { recipe } = normalizeRecipe({ ...MOCK_RECIPE, miscs: [...MOCK_RECIPE.miscs, { name: "Gypsum", inventory_id: "", amount: 3, unit: "g", use: "Mash", time_min: 0, type: "Water Agent" }] });
+  assert.ok(!recipe.miscs.some((m) => m.name === "Gypsum"));
+  assert.equal(recipe.miscs.length, MOCK_RECIPE.miscs.length);
+});

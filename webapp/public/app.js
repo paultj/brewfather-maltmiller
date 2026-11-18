@@ -289,14 +289,14 @@ function renderReview() {
         </tbody></table></div>
       </div>
       <div class="card">
-        <h3>Water &amp; additions</h3>
+        <h3>Additions &amp; water</h3>
         ${r.miscs.length ? `<div class="table-wrap"><table><tbody>${r.miscs.map((m) => `
           <tr>
             <td>${esc(m.name)}<div class="sub">${esc(m.use)}${m.time_min ? ` · ${fmt(m.time_min, 0)} min` : ""}</div></td>
             <td class="num">${fmt(m.amount)} ${esc(m.unit)}</td>
             <td>${stockBadge(m.stock)}</td>
           </tr>`).join("")}</tbody></table></div>` : '<p class="sub">None</p>'}
-        ${r.water_notes ? `<p class="sub" style="margin-top:10px">${esc(r.water_notes)}</p>` : ""}
+        <p class="sub" style="margin-top:10px"><b>Water:</b> set up in Brewfather's water calculator after pushing.${r.water_notes ? ` ${esc(r.water_notes)}` : ""}</p>
       </div>
     </div>
 
@@ -376,6 +376,7 @@ function pushBox() {
     : `${p.updated ? "Updated" : "Pushed"}${p.mock ? " (demo mode, nothing sent)" : ""}.`;
   return `<button id="push" class="btn primary" type="button">Update in Brewfather</button>
     <div id="push-result" class="push-result ${p.stale ? "" : "ok"}">${status} <a href="${esc(p.url)}" target="_blank" rel="noopener">Open in Brewfather</a></div>
+    ${p.water && !p.stale ? `<div class="push-result sub">Water: your source water${p.water.source ? ` (${esc(p.water.source)})` : ""}${p.water.targetCopied ? " and target profile were" : " was"} copied. Open the Water section in Brewfather to ${p.water.targetCopied ? "" : "pick a target profile and "}calculate the salts.</div>` : ""}
     <div class="push-result sub">Updating replaces the recipe in Brewfather, including any edits you made there. <a href="#" id="push-new">Save as a new recipe instead</a></div>`;
 }
 

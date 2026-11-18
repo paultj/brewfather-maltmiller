@@ -73,12 +73,13 @@ $("test-bf").addEventListener("click", async () => {
   out.className = "status";
   out.textContent = "Testing…";
   try {
-    const { counts, equipment } = await call("/api/settings/test-brewfather", {});
+    const { counts, equipment, water } = await call("/api/settings/test-brewfather", {});
     out.className = "status ok";
     const equip = equipment
       ? ` Equipment "${equipment.name}" (from recipe "${equipment.fromRecipe}"): efficiency ${equipment.efficiency ?? "?"}%, batch ${equipment.batchSize ?? "?"} L, boil ${equipment.boilTime ?? "?"} min.`
       : " No equipment found (no recipes in Brewfather yet), so the defaults below are used.";
-    out.textContent = `Connected. In stock: ${counts.fermentables} fermentables, ${counts.hops} hops, ${counts.yeasts} yeasts, ${counts.miscs} misc.${equip} (Save first if you just changed a setting.)`;
+    const wat = water ? ` Water: source "${water.source || "?"}"${water.target ? `, target "${water.target}"` : ""}.` : "";
+    out.textContent = `Connected. In stock: ${counts.fermentables} fermentables, ${counts.hops} hops, ${counts.yeasts} yeasts, ${counts.miscs} misc.${equip}${wat} (Save first if you just changed a setting.)`;
   } catch (err) {
     out.className = "status bad";
     out.textContent = err.message;

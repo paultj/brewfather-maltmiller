@@ -13,7 +13,7 @@ export const MOCK_INVENTORY = {
   yeasts: [
     { _id: "inv-y1", name: "Pineapple Passion", laboratory: "(demo lab)", productId: "", form: "Dry", attenuation: 78, unit: "pkg", inventory: 1 },
   ],
-  miscs: [{ _id: "inv-m1", name: "Calcium Chloride", type: "Water Agent", unit: "g", inventory: 200 }],
+  miscs: [{ _id: "inv-m1", name: "Protafloc", type: "Fining", unit: "items", inventory: 10 }],
 };
 
 export const MOCK_RECIPE = {
@@ -40,8 +40,8 @@ export const MOCK_RECIPE = {
     { name: "Pineapple Passion", inventory_id: "inv-y1", laboratory: "(demo lab)", product_id: "", type: "Ale", form: "Dry", attenuation_pct: 78, amount: 1, unit: "pkg", min_temp_c: 18, max_temp_c: 22 },
   ],
   miscs: [
-    { name: "Calcium Chloride", inventory_id: "inv-m1", amount: 8, unit: "g", use: "Mash", time_min: 0, type: "Water Agent" },
-    { name: "Gypsum", inventory_id: "", amount: 3, unit: "g", use: "Mash", time_min: 0, type: "Water Agent" },
+    { name: "Protafloc", inventory_id: "inv-m1", amount: 1, unit: "items", use: "Boil", time_min: 15, type: "Fining" },
+    { name: "Yeast nutrient", inventory_id: "", amount: 2, unit: "g", use: "Boil", time_min: 10, type: "Other" },
   ],
   mash_steps: [{ name: "Saccharification", temp_c: 67, time_min: 60 }],
   fermentation_steps: [
@@ -49,7 +49,7 @@ export const MOCK_RECIPE = {
     { name: "Free rise + dry hop", temp_c: 21, days: 7 },
     { name: "Cold crash", temp_c: 2, days: 2 },
   ],
-  water_notes: "Aim for roughly 150 ppm chloride and 75 ppm sulphate for a soft, full mouthfeel.",
+  water_notes: "Target profile \"Hazy IPA (NEIPA)\": chloride-forward, roughly 2:1 chloride to sulphate.",
   notes: "Dry hop during active fermentation at day 3 to limit oxygen pick-up. Package with minimal oxygen exposure.",
   swaps: [
     { replace: "Wheat Malt", with: "Torrified Wheat", inventory_id: "inv-f3", reason: "Similar haze and body from stock you already have; use the same 0.8 kg." },

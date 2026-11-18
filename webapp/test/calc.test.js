@@ -47,3 +47,19 @@ test("stock: hop additions without an inventory id still count against stock", (
   assert.equal(mosaicDry.stock.status, "partial");
   assert.equal(mosaicDry.stock.have, 50);
 });
+
+test("swaps: only inventory items not already in the recipe are kept", () => {
+  const recipe = {
+    ...MOCK_RECIPE,
+    swaps: [
+      ...MOCK_RECIPE.swaps,
+      { replace: "Wheat Malt", with: "Flaked Oats", inventory_id: "inv-f2", reason: "already used" },
+      { replace: "Mosaic", with: "Galaxy", inventory_id: "not-in-inventory", reason: "made up" },
+    ],
+  };
+  const r = annotateStock(recipe, MOCK_INVENTORY);
+  assert.equal(r.swaps.length, 1);
+  assert.equal(r.swaps[0].with, "Torrified Wheat");
+  assert.equal(r.swaps[0].have, 1);
+  assert.equal(r.swaps[0].unit, "kg");
+});

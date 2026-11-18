@@ -92,6 +92,17 @@ export const RECIPE_SCHEMA = obj({
   ),
   water_notes: str("Target water profile / chloride:sulphate guidance, or empty string."),
   notes: str("Brewing tips specific to this recipe (e.g. oxygen pick-up on dry hops), or empty string."),
+  swaps: arr(
+    obj({
+      replace: str("Name of the ingredient in this recipe that could be replaced, exactly as it appears above."),
+      with: str("Name of the inventory item to use instead, exactly as in the inventory list."),
+      inventory_id: str("The [id] of that inventory item."),
+      reason: str(
+        "One short sentence: how it changes the beer and any amount adjustment needed, e.g. 'More tropical; use 40 g instead of 50 g for similar bitterness.'",
+      ),
+    }),
+    "Up to 4 optional swaps using items from the brewer's inventory that are NOT already used in this recipe. Empty array if there are no sensible swaps.",
+  ),
 });
 
 /** Light runtime check on a recipe coming back from the browser. */
@@ -103,6 +114,7 @@ export function validateRecipe(r) {
   if (!r.style || typeof r.style.name !== "string" || typeof r.style.bjcp_code !== "string") errors.push("style is required");
   for (const k of ["batch_size_l", "boil_time_min", "efficiency_pct"]) if (!isNum(r[k]) || r[k] <= 0) errors.push(`${k} must be a positive number`);
   for (const k of ["fermentables", "hops", "yeasts", "miscs", "mash_steps", "fermentation_steps"]) if (!Array.isArray(r[k])) errors.push(`${k} must be a list`);
+  if (r.swaps !== undefined && !Array.isArray(r.swaps)) errors.push("swaps must be a list");
   if (errors.length) return errors;
   if (r.fermentables.length === 0) errors.push("at least one fermentable is required");
   if (r.yeasts.length === 0) errors.push("at least one yeast is required");

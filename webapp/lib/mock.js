@@ -4,6 +4,7 @@ export const MOCK_INVENTORY = {
   fermentables: [
     { _id: "inv-f1", name: "Extra Pale Maris Otter", supplier: "Crisp", type: "Grain", color: 1.8, potential: 1.037, inventory: 10 },
     { _id: "inv-f2", name: "Flaked Oats", supplier: "Crisp", type: "Adjunct", color: 1, potential: 1.033, inventory: 1.5 },
+    { _id: "inv-f3", name: "Torrified Wheat", supplier: "Crisp", type: "Adjunct", color: 1.5, potential: 1.036, inventory: 1 },
   ],
   hops: [
     { _id: "inv-h1", name: "Citra", type: "Pellet", alpha: 12.5, year: 2025, inventory: 100 },
@@ -49,6 +50,9 @@ export const MOCK_RECIPE = {
   ],
   water_notes: "Aim for roughly 150 ppm chloride and 75 ppm sulphate for a soft, full mouthfeel.",
   notes: "Dry hop during active fermentation at day 3 to limit oxygen pick-up. Package with minimal oxygen exposure.",
+  swaps: [
+    { replace: "Wheat Malt", with: "Torrified Wheat", inventory_id: "inv-f3", reason: "Similar haze and body from stock you already have; use the same 0.8 kg." },
+  ],
 };
 
 export function mockChatTurn({ history, text }) {

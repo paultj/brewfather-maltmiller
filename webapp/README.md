@@ -5,6 +5,7 @@ A small web app that asks the brewer *"Which beer would you like to brew?"*, des
 - **Chat.** Ask Claude to clone a commercial beer, design to a BJCP 2021 style, or build around ingredients you have. Keep chatting to refine the recipe.
 - **Inventory aware.** Your Brewfather inventory (fermentables, hops, yeasts, misc) is loaded and given to Claude, which uses what you have where it suits the beer.
 - **Review screen.** Grain bill, hop schedule, yeast, water, mash and fermentation steps, plus estimated OG/FG/ABV/IBU/colour. Each ingredient is marked *In stock*, *Partly in stock* or *To buy*, and a "To buy" list is built from that. You can rename the recipe or scale the batch size here.
+- **Swaps.** Claude suggests up to 4 optional swaps using stock you have that isn't already in the recipe (e.g. leftover Munich for Vienna). Press **Apply** and Claude re-issues the recipe with the swap, adjusting amounts.
 - **Push.** Nothing goes to Brewfather until you press **Push to Brewfather**, which creates a new recipe through the Brewfather API.
 
 The Malt Miller basket isn't part of this app yet (see the repo root for the earlier Cloudflare Worker experiment).

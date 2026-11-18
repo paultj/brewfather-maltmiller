@@ -217,6 +217,19 @@ function renderReview() {
       <div class="hint" style="margin-top:8px">Calculated by this app (Tinseth IBU, Morey colour). Brewfather may show slightly different numbers.</div>
     </div>
 
+    ${r.swaps?.length ? `
+    <div class="card">
+      <h3>Swaps from your stock</h3>
+      <p class="sub" style="margin:-4px 0 10px">Optional. Apply one and Claude will update the recipe, adjusting amounts to keep it on target.</p>
+      <div class="table-wrap"><table><tbody>${r.swaps.map((sw, i) => `
+        <tr>
+          <td><b>${esc(sw.replace)}</b> → <b>${esc(sw.with)}</b> <span class="badge in_stock">have ${fmt(sw.have)}${sw.unit ? " " + esc(sw.unit) : ""}</span>
+            <div class="sub">${esc(sw.reason)}</div></td>
+          <td class="num"><button class="btn small apply-swap" type="button" data-swap="${i}">Apply</button></td>
+        </tr>`).join("")}
+      </tbody></table></div>
+    </div>` : ""}
+
     <div class="card">
       <h3>Fermentables · ${fmt(s.total_grain_kg)} kg</h3>
       <div class="table-wrap"><table>
@@ -291,6 +304,13 @@ function renderReview() {
   `;
 
   $("#push").addEventListener("click", push);
+  review.querySelectorAll(".apply-swap").forEach((btn) =>
+    btn.addEventListener("click", () => {
+      const sw = state.recipe.swaps[Number(btn.dataset.swap)];
+      if (!sw || state.busy) return;
+      send(`Apply the swap: use ${sw.with} from my inventory instead of ${sw.replace}.`);
+    }),
+  );
   $("#recipe-name").addEventListener("change", (e) => {
     const name = e.target.value.trim();
     if (!name || name === state.recipe.name) return;

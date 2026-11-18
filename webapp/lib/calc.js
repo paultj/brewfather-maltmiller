@@ -116,8 +116,26 @@ export function annotateStock(recipe, inventory) {
     return { ...h, stock };
   };
 
+  // Swaps must point at a real inventory item that isn't already in the recipe.
+  const usedIds = new Set(
+    [...recipe.fermentables, ...recipe.hops, ...recipe.yeasts, ...recipe.miscs].map((i) => i.inventory_id).filter(Boolean),
+  );
+  const UNITS = { fermentables: "kg", hops: "g", yeasts: "pkg", miscs: "" };
+  const unitOf = (id) => {
+    for (const [collection, list] of Object.entries(inventory || {})) {
+      const item = list.find((x) => x._id === id);
+      if (item) return item.unit || UNITS[collection] || "";
+    }
+    return "";
+  };
+  const swaps = (recipe.swaps || [])
+    .filter((s) => byId.has(s.inventory_id) && !usedIds.has(s.inventory_id))
+    .slice(0, 4)
+    .map((s) => ({ ...s, have: round(Number(byId.get(s.inventory_id).inventory) || 0, 3), unit: unitOf(s.inventory_id) }));
+
   return {
     ...recipe,
+    swaps,
     fermentables: recipe.fermentables.map((f) => check(f, f.amount_kg, "kg")),
     hops: recipe.hops.map(checkHop),
     yeasts: recipe.yeasts.map((y) => check(y, y.amount, y.unit)),

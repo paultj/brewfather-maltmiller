@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Settings · Brew Recipe Maker</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/"><span class="brand-mark">🍺</span> Brew Recipe Maker</a>
+    <nav><a class="btn small" href="/">Back to recipes</a></nav>
+  </header>
+
+  <div class="narrow">
+    <form id="settings-form">
+      <div class="card">
+        <h3>Claude</h3>
+        <div class="field">
+          <label for="anthropicApiKey">Anthropic API key</label>
+          <input type="password" id="anthropicApiKey" autocomplete="off" placeholder="sk-ant-…">
+          <div class="help" id="anthropicApiKeyHelp">Create one at console.anthropic.com. Leave blank to keep the saved key.</div>
+        </div>
+        <div class="field">
+          <label for="model">Model</label>
+          <select id="model">
+            <option value="claude-sonnet-5-5">Claude Sonnet 5.5 (default, lower cost)</option>
+            <option value="claude-opus-5-5">Claude Opus 5.5 (stronger, about 2× the cost)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Brewfather</h3>
+        <div class="field">
+          <label for="brewfatherUserId">User ID</label>
+          <input type="text" id="brewfatherUserId" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="brewfatherApiKey">API key</label>
+          <input type="password" id="brewfatherApiKey" autocomplete="off">
+          <div class="help" id="brewfatherApiKeyHelp">In Brewfather: Settings → API → Generate API key. Tick <b>Read Inventory</b> and <b>Edit Recipes</b> (recipes.write). Leave blank to keep the saved key.</div>
+        </div>
+        <div class="field">
+          <label for="equipmentRecipeId">Copy equipment and water from</label>
+          <select id="equipmentRecipeId">
+            <option value="">Most recent recipe</option>
+          </select>
+          <div class="help">The Brewfather API can't read equipment profiles directly, so the app copies them from one of your recipes: the equipment (boil-off, losses, efficiency, batch volume type) and the water setup (your source water report; the target profile too when the new recipe is the same style). Pick a recipe that uses your usual equipment and water. Salt amounts are left for Brewfather's water calculator.</div>
+        </div>
+        <div class="actions">
+          <button type="button" id="test-bf" class="btn">Test connection</button>
+        </div>
+        <div id="test-result" class="status hidden"></div>
+      </div>
+
+      <div class="card">
+        <h3>Brewing defaults</h3>
+        <div class="field-row">
+          <div class="field"><label for="batchSizeL">Batch size (L)</label><input type="number" id="batchSizeL" step="0.5" min="1"></div>
+          <div class="field"><label for="efficiencyPct">Efficiency (%)</label><input type="number" id="efficiencyPct" step="0.1" min="30" max="100"><div class="help">Only used if no Brewfather equipment is found.</div></div>
+          <div class="field"><label for="boilTimeMin">Boil (min)</label><input type="number" id="boilTimeMin" step="5" min="0"></div>
+        </div>
+        <div class="field">
+          <label for="brewerNotes">Notes for Claude about your setup</label>
+          <textarea id="brewerNotes" rows="4" placeholder="e.g. Grainfather G30, soft southern-England water (approx. Ca 90, Cl 40, SO4 50), I prefer to ferment in a pressure-capable fermenter."></textarea>
+          <div class="help">Included with every recipe request: equipment, water report, preferences.</div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="btn primary" type="submit">Save settings</button>
+        <span id="save-result" class="hint"></span>
+      </div>
+    </form>
+  </div>
+  <script src="/settings.js"></script>
+</body>
+</html>

@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Brew Recipe Maker</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/"><span class="brand-mark">🍺</span> Brew Recipe Maker</a>
+    <nav>
+      <span id="mock-pill" class="pill hidden">Demo mode</span>
+      <span id="inventory-pill" class="hint"></span>
+      <button id="new-chat" class="btn small" type="button">New recipe</button>
+      <a class="btn small" href="/settings.html">Settings</a>
+      <button id="logout" class="btn small" type="button">Sign out</button>
+    </nav>
+  </header>
+
+  <main class="layout">
+    <section class="chat" aria-label="Recipe chat">
+      <div id="chat-log" class="chat-log">
+        <div class="intro">
+          <h2>Which beer would you like to brew?</h2>
+          You can ask me to clone a commercial beer, or recommend a recipe based on a chosen BJCP style. List any specific ingredients you want to use.
+          <ul>
+            <li>I'll check your Brewfather inventory and use what you have.</li>
+            <li>The recipe appears on the right for review. Nothing goes to Brewfather until you press Push.</li>
+          </ul>
+        </div>
+      </div>
+      <form id="chat-form" class="chat-form">
+        <textarea id="chat-input" placeholder="e.g. A 23 L NEIPA using my pack of Pineapple Passion yeast" required></textarea>
+        <div class="chat-form-row">
+          <span class="hint">Enter to send · Shift+Enter for a new line</span>
+          <button id="send" class="btn primary" type="submit">Send</button>
+        </div>
+      </form>
+    </section>
+
+    <section id="review" class="review" aria-label="Recipe review">
+      <div class="empty-state">
+        <div class="big">📋</div>
+        <p>Your recipe will appear here for review once Claude has drafted it.</p>
+      </div>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

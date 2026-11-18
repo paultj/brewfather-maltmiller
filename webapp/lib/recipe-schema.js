@@ -21,8 +21,8 @@ export const RECIPE_SCHEMA = obj({
   name: str("Recipe name, short and evocative."),
   description: str("Two or three sentences describing the beer and the intent of the recipe."),
   style: obj({
-    name: str("BJCP 2021 style name, e.g. 'Hazy IPA'."),
-    bjcp_code: str("BJCP 2021 code, e.g. '21C'."),
+    name: str("Official BJCP 2021 style name exactly as in the guidelines, e.g. 'Hazy IPA', 'American IPA'. Not informal names like 'West Coast IPA' or 'NEIPA'."),
+    bjcp_code: str("BJCP 2021 code, e.g. '21C'. Empty string if the beer fits no BJCP style."),
   }),
   target_ranges: obj({
     og_min: numb("Minimum OG, e.g. 1.060."),
@@ -186,6 +186,8 @@ function coerce(schema, value, path, errors) {
   return str;
 }
 
+import { checkStyle } from "./styles.js";
+
 // Water treatment is done in Brewfather's water calculator, so drop any
 // brewing salts or acids that slip into the recipe (Campden is kept).
 const WATER_TREATMENT =
@@ -199,6 +201,9 @@ export function normalizeRecipe(input) {
   const errors = [];
   const recipe = coerce(RECIPE_SCHEMA, input, "", errors);
   recipe.miscs = recipe.miscs.filter((m) => !isWaterTreatment(m.name));
+  const style = checkStyle(recipe.style);
+  recipe.style = style.style;
+  if (style.error) errors.push(style.error);
   if (!errors.length) errors.push(...validateRecipe(recipe));
   return { recipe, errors };
 }

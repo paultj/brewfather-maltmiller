@@ -168,3 +168,27 @@ test("water salts and acids are removed from recipes, Campden is kept", () => {
   assert.ok(!recipe.miscs.some((m) => m.name === "Gypsum"));
   assert.equal(recipe.miscs.length, MOCK_RECIPE.miscs.length);
 });
+
+import { checkStyle } from "../lib/styles.js";
+
+test("style name and code must agree with BJCP 2021", () => {
+  assert.deepEqual(checkStyle({ name: "Hazy IPA", bjcp_code: "21c" }), { style: { name: "Hazy IPA", bjcp_code: "21C" }, error: "" });
+  assert.equal(checkStyle({ name: "American IPA", bjcp_code: "21C" }).style.bjcp_code, "21A"); // code fixed from name
+  assert.match(checkStyle({ name: "West Coast IPA", bjcp_code: "21C" }).error, /Hazy IPA/);
+  assert.match(checkStyle({ name: "Something", bjcp_code: "99Z" }).error, /not a BJCP 2021/);
+  assert.equal(checkStyle({ name: "Specialty IPA", bjcp_code: "21B" }).error, "");
+});
+
+test("Brewfather style carries BJCP ranges", () => {
+  const bf = toBrewfatherRecipe({ ...MOCK_RECIPE, style: { name: "American IPA", bjcp_code: "21A" } }, MOCK_INVENTORY);
+  assert.equal(bf.style.name, "American IPA");
+  assert.equal(bf.style.category, "IPA");
+  assert.equal(bf.style.categoryNumber, "21");
+  assert.equal(bf.style.styleLetter, "A");
+  assert.equal(bf.style.ibuMin, 40);
+  assert.equal(bf.style.colorMax, 14);
+});
+
+test("non-BJCP beers with no code are allowed", () => {
+  assert.equal(checkStyle({ name: "Session Pale", bjcp_code: "" }).error, "");
+});

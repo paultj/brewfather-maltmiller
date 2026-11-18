@@ -1,6 +1,7 @@
 // Brewfather API v2: read inventory, create recipes.
 // Docs: https://docs.brewfather.app/api  (500 calls/hour per key)
 import { computeStats } from "./calc.js";
+import { rangesFor, bjcpCategory } from "./styles.js";
 
 const BASE = process.env.BREWFATHER_API_BASE || "https://api.brewfather.app/v2";
 const COLLECTIONS = ["fermentables", "hops", "yeasts", "miscs"];
@@ -203,6 +204,27 @@ export function waterFor(recipe, template) {
   return copy;
 }
 
+// Brewfather style object with the ranges filled in, so Brewfather shows the
+// style's ranges against the recipe.
+function brewfatherStyle(recipe) {
+  const code = String(recipe.style.bjcp_code || "").toUpperCase();
+  const r = rangesFor(recipe) || {};
+  const pair = (key, min, max) => (r[key] ? { [min]: r[key][0], [max]: r[key][1] } : {});
+  return {
+    name: recipe.style.name,
+    category: bjcpCategory(code) || recipe.style.name,
+    categoryNumber: code.replace(/[A-Z]$/, ""),
+    styleLetter: (code.match(/[A-Z]$/) || [""])[0],
+    styleGuide: code ? "BJCP 2021" : "",
+    type: "Beer",
+    ...pair("og", "ogMin", "ogMax"),
+    ...pair("fg", "fgMin", "fgMax"),
+    ...pair("abv", "abvMin", "abvMax"),
+    ...pair("ibu", "ibuMin", "ibuMax"),
+    ...pair("srm", "colorMin", "colorMax"),
+  };
+}
+
 export function toBrewfatherRecipe(recipe, inventory, equipment = null, template = null) {
   const stats = computeStats(recipe);
   const equip = equipmentFor(recipe, equipment);
@@ -272,13 +294,7 @@ export function toBrewfatherRecipe(recipe, inventory, equipment = null, template
     ...(equip ? { equipment: equip } : {}),
     ...(water ? { water } : {}),
     ...(equip && equip.mashEfficiency != null ? { mashEfficiency: equip.mashEfficiency } : {}),
-    style: {
-      name: recipe.style.name,
-      categoryNumber: recipe.style.bjcp_code.replace(/[A-Z]$/i, ""),
-      styleLetter: (recipe.style.bjcp_code.match(/[A-Z]$/i) || [""])[0],
-      styleGuide: "BJCP 2021",
-      type: "Beer",
-    },
+    style: brewfatherStyle(recipe),
     og: stats.og,
     fg: stats.fg,
     ibu: stats.ibu,

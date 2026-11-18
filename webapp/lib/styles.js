@@ -7,7 +7,39 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const BJCP = JSON.parse(fs.readFileSync(path.join(here, "bjcp-2021.json"), "utf8")).styles;
+const DATA = JSON.parse(fs.readFileSync(path.join(here, "bjcp-2021.json"), "utf8"));
+const BJCP = DATA.styles; // styles with fixed stat ranges
+const NAMES = DATA.names; // every BJCP 2021 beer style: code -> { name, category }
+
+const norm = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+
+/**
+ * Make sure the style code and name agree with BJCP 2021, so the right
+ * ranges are used and Brewfather shows the right style. Fixes the code when
+ * the name is an exact BJCP name; otherwise returns an error for Claude.
+ */
+export function checkStyle(style) {
+  const code = String(style?.bjcp_code || "").trim().toUpperCase();
+  const name = String(style?.name || "").trim();
+  // No code: a non-BJCP beer. Fine; Claude's target_ranges are used.
+  if (!code) return { style: { name, bjcp_code: "" }, error: "" };
+  const byName = Object.entries(NAMES).find(([, v]) => norm(v.name) === norm(name));
+  const entry = NAMES[code];
+  if (entry && norm(entry.name) === norm(name)) return { style: { name: entry.name, bjcp_code: code }, error: "" };
+  if (byName && byName[0] !== code) return { style: { name: byName[1].name, bjcp_code: byName[0] }, error: "" };
+  if (!entry) {
+    return { style, error: `style.bjcp_code "${code}" is not a BJCP 2021 beer style code. Use the official code and name, e.g. 21A American IPA, 21C Hazy IPA.` };
+  }
+  return {
+    style,
+    error: `style "${name}" does not match BJCP 2021 code ${code}, which is "${entry.name}". Set style.name and style.bjcp_code to the official BJCP 2021 name and code for the beer you designed (e.g. a West Coast IPA is 21A American IPA; a NEIPA is 21C Hazy IPA).`,
+  };
+}
+
+/** Category name for a BJCP code, e.g. "IPA". */
+export function bjcpCategory(code) {
+  return NAMES[String(code || "").trim().toUpperCase()]?.category || "";
+}
 
 export const STATS = ["og", "fg", "abv", "ibu", "srm"];
 

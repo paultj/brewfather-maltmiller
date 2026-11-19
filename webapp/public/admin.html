@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin · Brew Recipe Maker</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/"><span class="brand-mark">🍺</span> Brew Recipe Maker</a>
+    <nav>
+      <span id="user-email" class="user-email"></span>
+      <a class="btn small" href="/">Recipes</a>
+      <a class="btn small" href="/settings.html">Settings</a>
+      <button id="logout" class="btn small" type="button">Sign out</button>
+    </nav>
+  </header>
+
+  <div class="wide">
+    <div class="card">
+      <h3>Invite someone</h3>
+      <p class="sub" style="margin-top:0">Create a link and send it from your own email or messages. Each link works once and expires after <span id="invite-days">14</span> days.</p>
+      <form id="invite-form" class="actions">
+        <input type="text" id="invite-note" placeholder="Who it's for (optional), e.g. Dave from the club" style="flex:1;min-width:220px">
+        <button class="btn primary" type="submit">Create invite link</button>
+      </form>
+      <div id="invite-out" class="hidden">
+        <div class="copy-row"><input type="text" id="invite-link" readonly><button type="button" class="btn" id="copy-invite">Copy</button></div>
+        <p class="hint">This link is only shown once. Copy it now.</p>
+      </div>
+      <div class="table-wrap" style="margin-top:12px">
+        <table>
+          <thead><tr><th>For</th><th>Created</th><th>Status</th><th></th></tr></thead>
+          <tbody id="invites"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Costs</h3>
+      <div class="stats" id="summary"></div>
+      <p class="metric-note">
+        Estimated from the tokens each Claude request used, at Anthropic's list prices, converted at £<span id="rate"></span> per $1.
+        <b>Per user per month</b> is the total cost divided by the users who chatted that month.
+        <b>Per pushed recipe</b> is the chat cost of the conversations that ended in a new Brewfather recipe, divided by those recipes.
+        <b>Per recipe started</b> includes conversations that were abandoned. Users pay for this with their own Anthropic keys.
+      </p>
+      <div class="table-wrap" style="margin-top:12px">
+        <table>
+          <thead><tr>
+            <th>Month</th><th class="num">Active users</th><th class="num">Started</th><th class="num">Pushed</th>
+            <th class="num">Total</th><th class="num">Per user</th><th class="num">Per pushed recipe</th><th class="num">Per started</th>
+          </tr></thead>
+          <tbody id="months"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Users</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Email</th><th>Set up</th><th class="num">This month</th><th class="num">Started / pushed</th><th class="num">All time</th><th>Last seen</th><th></th>
+          </tr></thead>
+          <tbody id="users"></tbody>
+        </table>
+      </div>
+      <div id="reset-out" class="hidden">
+        <p class="sub" id="reset-for"></p>
+        <div class="copy-row"><input type="text" id="reset-link" readonly><button type="button" class="btn" id="copy-reset">Copy</button></div>
+        <p class="hint">Send this to them. It works once and expires in 48 hours.</p>
+      </div>
+      <div id="users-result" class="status hidden"></div>
+    </div>
+
+    <form id="config-form" class="card">
+      <h3>Site settings</h3>
+      <div class="field-row" style="grid-template-columns:2fr 1fr">
+        <div class="field">
+          <label for="appUrl">Site address</label>
+          <input type="url" id="appUrl" placeholder="https://brew.example.com">
+          <div class="help">Used in links. Leave blank while testing; links then use the address you're viewing the site on.</div>
+        </div>
+        <div class="field">
+          <label for="gbpPerUsd">£ per $1</label>
+          <input type="number" id="gbpPerUsd" step="0.01" min="0.1" max="3">
+          <div class="help">For showing costs in pounds.</div>
+        </div>
+      </div>
+
+      <h3 style="margin-top:8px">Email (for password resets)</h3>
+      <p class="sub" style="margin-top:0" id="mail-state"></p>
+      <div class="field-row" style="grid-template-columns:2fr 1fr 1fr">
+        <div class="field"><label for="smtpHost">SMTP server</label><input type="text" id="smtpHost" placeholder="mail.example.com"></div>
+        <div class="field"><label for="smtpPort">Port</label><input type="number" id="smtpPort" min="1" max="65535"></div>
+        <div class="field"><label for="smtpSecure">Encryption</label>
+          <select id="smtpSecure"><option value="false">STARTTLS (port 587)</option><option value="true">SSL/TLS (port 465)</option></select>
+        </div>
+      </div>
+      <div class="field-row" style="grid-template-columns:1fr 1fr">
+        <div class="field"><label for="smtpUser">Username</label><input type="text" id="smtpUser" autocomplete="off" placeholder="brew@example.com"></div>
+        <div class="field"><label for="smtpPass">Password</label><input type="password" id="smtpPass" autocomplete="new-password"></div>
+      </div>
+      <div class="field">
+        <label for="mailFrom">Send as</label>
+        <input type="text" id="mailFrom" placeholder="Brew Recipe Maker &lt;brew@example.com&gt;">
+        <div class="help">Emails are only sent once the SMTP server, "Send as" and the site address are filled in. In cPanel these details are under Email Accounts → Connect Devices.</div>
+      </div>
+      <div class="actions">
+        <button class="btn primary" type="submit">Save site settings</button>
+        <button class="btn" type="button" id="test-email">Send me a test email</button>
+      </div>
+      <div id="config-result" class="status hidden"></div>
+    </form>
+  </div>
+  <script src="/common.js"></script>
+  <script src="/admin.js"></script>
+</body>
+</html>

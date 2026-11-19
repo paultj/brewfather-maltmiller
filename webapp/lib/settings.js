@@ -1,16 +1,14 @@
-// Settings live in a JSON file on the server (never in the browser).
-// API keys are returned to the UI only in masked form.
+// Per-user settings (API keys, Brewfather account, brewing defaults).
+// They are stored in the users table (see users.js) with the API keys
+// encrypted. Keys are returned to the browser only in masked form.
 import fs from "node:fs";
 import path from "node:path";
-import crypto from "node:crypto";
 
 export const DATA_DIR = path.resolve(process.env.DATA_DIR || "./data");
-const SETTINGS_FILE = path.join(DATA_DIR, "settings.json");
-const SECRET_FILE = path.join(DATA_DIR, "session-secret");
-
 export const DEFAULT_MODEL = "claude-sonnet-5-5";
+export const MODELS = ["claude-sonnet-5-5", "claude-opus-5-5"];
 
-const DEFAULTS = {
+export const DEFAULTS = {
   anthropicApiKey: "",
   brewfatherUserId: "",
   brewfatherApiKey: "",
@@ -22,26 +20,10 @@ const DEFAULTS = {
   brewerNotes: "",
 };
 
-const SECRET_KEYS = ["anthropicApiKey", "brewfatherApiKey"];
+export const SECRET_KEYS = ["anthropicApiKey", "brewfatherApiKey"];
 
-function ensureDataDir() {
+export function ensureDataDir() {
   fs.mkdirSync(DATA_DIR, { recursive: true, mode: 0o700 });
-}
-
-export function loadSettings() {
-  try {
-    const raw = JSON.parse(fs.readFileSync(SETTINGS_FILE, "utf8"));
-    return { ...DEFAULTS, ...raw };
-  } catch {
-    return { ...DEFAULTS };
-  }
-}
-
-function writeSettings(settings) {
-  ensureDataDir();
-  const tmp = `${SETTINGS_FILE}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(settings, null, 2), { mode: 0o600 });
-  fs.renameSync(tmp, SETTINGS_FILE);
 }
 
 function mask(value) {
@@ -50,12 +32,11 @@ function mask(value) {
 }
 
 /** Settings safe to send to the browser. */
-export function publicSettings() {
-  const s = loadSettings();
-  const out = { ...s };
+export function maskSettings(s) {
+  const out = { ...DEFAULTS, ...s };
   for (const k of SECRET_KEYS) {
+    out[`${k}Masked`] = mask(out[k]);
     out[k] = "";
-    out[`${k}Masked`] = mask(s[k]);
   }
   return out;
 }
@@ -66,36 +47,30 @@ function num(value, fallback, min, max) {
   return Math.min(max, Math.max(min, n));
 }
 
-/** Merge an update from the admin form. Blank secret fields keep the stored value. */
-export function updateSettings(input) {
-  const current = loadSettings();
-  const next = { ...current };
-
+/** Merge an update from the settings form. Blank secret fields keep the stored value. */
+export function mergeSettings(current, input) {
+  const cur = { ...DEFAULTS, ...current };
+  const next = { ...cur };
   for (const k of SECRET_KEYS) {
     if (input[`clear_${k}`] === true) next[k] = "";
     else if (typeof input[k] === "string" && input[k].trim()) next[k] = input[k].trim();
   }
   if (typeof input.brewfatherUserId === "string") next.brewfatherUserId = input.brewfatherUserId.trim();
   if (typeof input.equipmentRecipeId === "string") next.equipmentRecipeId = input.equipmentRecipeId.trim();
-  if (typeof input.model === "string" && input.model.trim()) next.model = input.model.trim();
+  if (typeof input.model === "string" && MODELS.includes(input.model.trim())) next.model = input.model.trim();
   if (typeof input.brewerNotes === "string") next.brewerNotes = input.brewerNotes.slice(0, 4000);
-  next.batchSizeL = num(input.batchSizeL, current.batchSizeL, 1, 2000);
-  next.efficiencyPct = num(input.efficiencyPct, current.efficiencyPct, 30, 100);
-  next.boilTimeMin = num(input.boilTimeMin, current.boilTimeMin, 0, 240);
-
-  writeSettings(next);
-  return publicSettings();
+  if ("batchSizeL" in input) next.batchSizeL = num(input.batchSizeL, cur.batchSizeL, 1, 2000);
+  if ("efficiencyPct" in input) next.efficiencyPct = num(input.efficiencyPct, cur.efficiencyPct, 30, 100);
+  if ("boilTimeMin" in input) next.boilTimeMin = num(input.boilTimeMin, cur.boilTimeMin, 0, 240);
+  return next;
 }
 
-/** Secret used to sign the login cookie. From env, else generated once and stored. */
-export function sessionSecret() {
-  if (process.env.SESSION_SECRET) return process.env.SESSION_SECRET;
+/** Settings from the single-user version (data/settings.json), if present. */
+export function readLegacySettings() {
+  const file = path.join(DATA_DIR, "settings.json");
   try {
-    return fs.readFileSync(SECRET_FILE, "utf8").trim();
+    return { file, settings: { ...DEFAULTS, ...JSON.parse(fs.readFileSync(file, "utf8")) } };
   } catch {
-    ensureDataDir();
-    const secret = crypto.randomBytes(32).toString("hex");
-    fs.writeFileSync(SECRET_FILE, secret, { mode: 0o600 });
-    return secret;
+    return null;
   }
 }

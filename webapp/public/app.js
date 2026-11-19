@@ -2,7 +2,10 @@
 // only (sessionStorage); nothing is saved on the server.
 
 const STORE_KEY = "brew-recipe-maker:v1";
-const state = { history: [], log: [], recipe: null, pushed: null, edits: [], busy: false };
+const state = { history: [], log: [], recipe: null, pushed: null, edits: [], conversationId: "", busy: false };
+
+// Ties the chat turns and pushes of one recipe together for the usage figures.
+const newConversationId = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
 
 const $ = (sel) => document.querySelector(sel);
 const chatLog = $("#chat-log");
@@ -11,7 +14,7 @@ const review = $("#review");
 
 function save() {
   try {
-    sessionStorage.setItem(STORE_KEY, JSON.stringify({ history: state.history, log: state.log, recipe: state.recipe, pushed: state.pushed, edits: state.edits }));
+    sessionStorage.setItem(STORE_KEY, JSON.stringify({ history: state.history, log: state.log, recipe: state.recipe, pushed: state.pushed, edits: state.edits, conversationId: state.conversationId }));
   } catch {
     // storage full or blocked; the session just won't survive a reload
   }
@@ -81,7 +84,8 @@ async function send(text) {
   const thinking = addMessage("thinking", "Designing… this can take up to a minute.", { persist: false });
 
   try {
-    const data = await api("/api/chat", { history: state.history, text: outgoing });
+    if (!state.conversationId) state.conversationId = newConversationId();
+    const data = await api("/api/chat", { history: state.history, text: outgoing, conversationId: state.conversationId });
     thinking.remove();
     state.history = data.history;
     state.edits = [];
@@ -118,7 +122,7 @@ input.addEventListener("keydown", (e) => {
 
 $("#new-chat").addEventListener("click", () => {
   if (state.log.length && !confirmReset()) return;
-  Object.assign(state, { history: [], log: [], recipe: null, pushed: null, edits: [] });
+  Object.assign(state, { history: [], log: [], recipe: null, pushed: null, edits: [], conversationId: newConversationId() });
   save();
   location.reload();
 });
@@ -126,12 +130,6 @@ $("#new-chat").addEventListener("click", () => {
 function confirmReset() {
   return window.confirm("Start a new recipe? This clears the current conversation.");
 }
-
-$("#logout").addEventListener("click", async () => {
-  await fetch("/api/logout", { method: "POST" });
-  try { sessionStorage.removeItem(STORE_KEY); } catch {}
-  location.href = "/login";
-});
 
 // ---------- Review ----------
 
@@ -387,7 +385,7 @@ async function push(update) {
   out.className = "push-result";
   out.textContent = update ? "Updating Brewfather…" : "Pushing to Brewfather…";
   try {
-    const result = await api("/api/recipe/push", { recipe: state.recipe, updateId: update ? state.pushed.id : undefined });
+    const result = await api("/api/recipe/push", { recipe: state.recipe, updateId: update ? state.pushed.id : undefined, conversationId: state.conversationId });
     state.pushed = { ...result, stale: false };
     save();
     renderReview();
@@ -403,6 +401,7 @@ async function push(update) {
 
 async function init() {
   restore();
+  window.Brew.topbar();
   renderLog();
   if (state.recipe) renderReview();
 
@@ -410,7 +409,7 @@ async function init() {
     const settings = await api("/api/settings");
     if (settings.mock) $("#mock-pill").classList.remove("hidden");
     if (!settings.mock && !settings.anthropicApiKeyMasked) {
-      addMessage("system", "Add your Anthropic API key in Settings before chatting.", { persist: false });
+      addMessage("system", "Add your own Anthropic API key in Settings before chatting. Each person uses their own key.", { persist: false });
     }
     const { inventory } = await api("/api/inventory");
     if (inventory) {

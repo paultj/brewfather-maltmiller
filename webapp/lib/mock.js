@@ -63,5 +63,8 @@ export function mockChatTurn({ history, text }) {
     { type: "tool_use", id, name: "propose_recipe", input: MOCK_RECIPE },
   ];
   const messages = [...history, { role: "user", content: [{ type: "text", text }] }, { role: "assistant", content }];
-  return { history: messages, reply: content[0].text, recipe: MOCK_RECIPE };
+  // Made-up but typical token counts, so the admin page has numbers to show.
+  const usage = { model: "claude-sonnet-5-5", input: 900, output: 2600, cacheRead: 7200, cacheWrite: 0, requests: 1 };
+  usage.cost = (usage.input * 2 + usage.output * 10 + usage.cacheRead * 0.1) / 1e6;
+  return { history: messages, reply: content[0].text, recipe: MOCK_RECIPE, usage };
 }

@@ -5,6 +5,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { RECIPE_SCHEMA, normalizeRecipe } from "./recipe-schema.js";
 import { computeStats } from "./calc.js";
 import { rangesFor, checkRanges, outOfRangeReport } from "./styles.js";
+import { responseUsage, sumUsage } from "./usage.js";
 
 const TOOL = {
   name: "propose_recipe",
@@ -89,7 +90,9 @@ export async function chatTurn({ settings, inventory, history, text }) {
   userContent.push({ type: "text", text });
   const messages = [...history, { role: "user", content: userContent }];
 
-  const request = (msgs) =>
+  // Token usage of every request this turn, for cost tracking.
+  const usages = [];
+  const send = (msgs) =>
     client.beta.messages.create({
       model: settings.model,
       max_tokens: 16000,
@@ -102,6 +105,15 @@ export async function chatTurn({ settings, inventory, history, text }) {
       tools: [TOOL],
       messages: msgs,
     });
+  const request = async (msgs) => {
+    try {
+      return await send(msgs);
+    } catch (err) {
+      // Keep the cost of earlier requests in this turn even when one fails.
+      if (usages.length) err.usage = sumUsage(usages);
+      throw err;
+    }
+  };
 
   // Ask Claude. If its recipe doesn't validate, send the problems back (up to
   // two retries). If it validates but the app's calculated stats fall outside
@@ -113,9 +125,10 @@ export async function chatTurn({ settings, inventory, history, text }) {
   let rangeFixAsked = false;
   for (let attempt = 0; attempt < 5; attempt++) {
     response = await request(messages);
+    usages.push(responseUsage(response));
 
     if (response.stop_reason === "refusal") {
-      throw Object.assign(new Error("Claude declined this request. Try rephrasing it."), { status: 422 });
+      throw Object.assign(new Error("Claude declined this request. Try rephrasing it."), { status: 422, usage: sumUsage(usages) });
     }
 
     // Keep the assistant turn exactly as returned (thinking blocks included)
@@ -177,5 +190,10 @@ export async function chatTurn({ settings, inventory, history, text }) {
     reply += "\n\n(The reply was cut off. Ask me to continue or to propose the recipe again.)";
   }
 
-  return { history: messages, reply: reply || (recipe ? "Here's the recipe. Have a look at the review panel." : ""), recipe };
+  return {
+    history: messages,
+    reply: reply || (recipe ? "Here's the recipe. Have a look at the review panel." : ""),
+    recipe,
+    usage: sumUsage(usages),
+  };
 }

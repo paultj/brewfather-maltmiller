@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>New password · Brew Recipe Maker</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="card login-card" style="max-width:420px">
+    <div class="brand" style="margin-bottom:16px"><span class="brand-mark">🍺</span> Brew Recipe Maker</div>
+    <div id="reset-problem" class="status bad hidden"></div>
+    <form id="reset-form" class="hidden">
+      <p>Choose a new password.</p>
+      <div class="field">
+        <label for="password">New password</label>
+        <input type="password" id="password" autocomplete="new-password" minlength="10" required autofocus>
+        <div class="help">At least 10 characters.</div>
+      </div>
+      <div class="field">
+        <label for="password2">New password again</label>
+        <input type="password" id="password2" autocomplete="new-password" minlength="10" required>
+      </div>
+      <button class="btn primary" type="submit">Save password</button>
+      <div id="reset-error" class="status bad hidden"></div>
+    </form>
+    <div class="auth-links"><a href="/login">Back to sign in</a></div>
+  </div>
+  <script src="/common.js"></script>
+  <script src="/reset.js"></script>
+</body>
+</html>

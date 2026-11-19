@@ -1,4 +1,5 @@
 const $ = (id) => document.getElementById(id);
+const { money, status } = window.Brew;
 const FIELDS = ["brewfatherUserId", "equipmentRecipeId", "model", "batchSizeL", "efficiencyPct", "boilTimeMin", "brewerNotes"];
 const SECRETS = ["anthropicApiKey", "brewfatherApiKey"];
 
@@ -86,4 +87,51 @@ $("test-bf").addEventListener("click", async () => {
   }
 });
 
+async function loadUsage() {
+  try {
+    const u = await call("/api/account/usage");
+    const tile = (label, v) => `<div class="stat"><div class="label">${label}</div><div class="value" style="font-size:17px">${v}</div></div>`;
+    $("usage").innerHTML = [
+      tile("This month", money(u.month.cost, u.gbpPerUsd)),
+      tile("Recipes started", u.month.started),
+      tile("Pushed to Brewfather", u.month.pushed),
+      tile("All time", money(u.total.cost, u.gbpPerUsd)),
+    ].join("");
+  } catch {
+    // not important enough to show an error
+  }
+}
+
+$("password-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const out = $("password-result");
+  try {
+    await call("/api/account/password", { current: $("current-password").value, password: $("new-password").value });
+    e.target.reset();
+    status(out, "Password changed.", true);
+  } catch (err) {
+    status(out, err.message, false);
+  }
+});
+
+$("delete-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if (!confirm("Delete your account? This can't be undone.")) return;
+  const out = $("delete-result");
+  try {
+    await call("/api/account/delete", { password: $("delete-password").value });
+    try {
+      sessionStorage.clear();
+    } catch {
+      // ignore
+    }
+    location.href = "/login";
+  } catch (err) {
+    status(out, err.message, false);
+  }
+});
+
+if (new URLSearchParams(location.search).get("welcome")) $("welcome").classList.remove("hidden");
+window.Brew.topbar();
 load();
+loadUsage();

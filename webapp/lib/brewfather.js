@@ -1,5 +1,6 @@
 // Brewfather API v2: read inventory, create recipes.
 // Docs: https://docs.brewfather.app/api  (500 calls/hour per key)
+import crypto from "node:crypto";
 import { computeStats } from "./calc.js";
 import { rangesFor, bjcpCategory } from "./styles.js";
 
@@ -66,20 +67,31 @@ async function listAll(settings, collection) {
   return items;
 }
 
-let inventoryCache = { key: "", at: 0, data: null };
+// Caches are per Brewfather account (several users share one server).
+function cacheKey(settings, extra = "") {
+  return crypto.createHash("sha256").update(`${settings.brewfatherUserId}:${settings.brewfatherApiKey}:${extra}`).digest("hex");
+}
+function cacheGet(cache, key) {
+  const hit = cache.get(key);
+  return hit && Date.now() - hit.at < INVENTORY_TTL_MS ? hit : null;
+}
+function cacheSet(cache, key, data) {
+  if (cache.size > 200) cache.clear();
+  cache.set(key, { at: Date.now(), data });
+}
+const inventoryCache = new Map();
 
 /** All inventory items with stock > 0, grouped by collection. Cached for 5 minutes. */
 export async function getInventory(settings, { refresh = false } = {}) {
-  const key = `${settings.brewfatherUserId}:${settings.brewfatherApiKey.slice(-6)}`;
-  if (!refresh && inventoryCache.data && inventoryCache.key === key && Date.now() - inventoryCache.at < INVENTORY_TTL_MS) {
-    return inventoryCache.data;
-  }
+  const key = cacheKey(settings);
+  const hit = !refresh && cacheGet(inventoryCache, key);
+  if (hit) return hit.data;
   const results = await Promise.all(COLLECTIONS.map((c) => listAll(settings, c)));
   const data = {};
   COLLECTIONS.forEach((c, i) => {
     data[c] = results[i].filter((item) => Number(item.inventory) > 0);
   });
-  inventoryCache = { key, at: Date.now(), data };
+  cacheSet(inventoryCache, key, data);
   return data;
 }
 
@@ -93,7 +105,7 @@ export async function listRecipes(settings) {
   }
 }
 
-let equipmentCache = { key: "", at: 0, data: null };
+const equipmentCache = new Map();
 
 /**
  * The equipment profile to use for new recipes, copied from an existing
@@ -103,10 +115,9 @@ let equipmentCache = { key: "", at: 0, data: null };
  * Returns { equipment, water, styleCode, fromRecipe } or null if there are no recipes.
  */
 export async function getEquipment(settings, { refresh = false } = {}) {
-  const key = `${settings.brewfatherUserId}:${settings.brewfatherApiKey.slice(-6)}:${settings.equipmentRecipeId || "latest"}`;
-  if (!refresh && equipmentCache.key === key && Date.now() - equipmentCache.at < INVENTORY_TTL_MS) {
-    return equipmentCache.data;
-  }
+  const key = cacheKey(settings, settings.equipmentRecipeId || "latest");
+  const hit = !refresh && cacheGet(equipmentCache, key);
+  if (hit) return hit.data;
   let id = settings.equipmentRecipeId;
   if (!id) {
     const list = await listRecipes(settings);
@@ -124,7 +135,7 @@ export async function getEquipment(settings, { refresh = false } = {}) {
       };
     }
   }
-  equipmentCache = { key, at: Date.now(), data };
+  cacheSet(equipmentCache, key, data);
   return data;
 }
 

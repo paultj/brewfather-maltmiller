@@ -69,7 +69,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .btn:disabled { opacity: 0.55; cursor: default; }
 .btn.small { padding: 4px 10px; font-size: 13px; }
 
-input[type="text"], input[type="password"], input[type="number"], textarea, select {
+input[type="text"], input[type="email"], input[type="password"], input[type="number"], input[type="url"], textarea, select {
   width: 100%; padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px;
   background: var(--bg);
 }
@@ -192,3 +192,20 @@ td.num, th.num { text-align: right; white-space: nowrap; }
 .range-flag.in { background: var(--ok-soft); color: var(--ok); }
 .range-flag.out { background: var(--bad-soft); color: var(--bad); }
 .range-src { text-transform: none; letter-spacing: 0; font-weight: 400; font-size: 13px; }
+
+/* Accounts and admin */
+.wide { max-width: 1040px; margin: 24px auto; padding: 0 16px; }
+.auth-links { margin-top: 14px; font-size: 14px; display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.linkish { background: none; border: none; padding: 0; color: var(--accent); cursor: pointer; text-decoration: underline; font-size: 14px; }
+.copy-row { display: flex; gap: 8px; margin-top: 10px; }
+.copy-row input { flex: 1; min-width: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+.user-email { font-size: 13px; color: var(--muted); }
+.badge.open { background: var(--ok-soft); color: var(--ok); }
+.badge.used, .badge.expired, .badge.revoked, .badge.disabled { background: var(--bg); color: var(--muted); border: 1px solid var(--line); }
+.badge.admin { background: var(--accent-soft); color: var(--warn); }
+.metric-note { font-size: 13px; color: var(--muted); margin: 10px 0 0; }
+.btn.danger { border-color: var(--bad); color: var(--bad); }
+@media (max-width: 640px) {
+  .field-row { grid-template-columns: 1fr; }
+  .topbar nav { flex-wrap: wrap; justify-content: flex-end; }
+}
